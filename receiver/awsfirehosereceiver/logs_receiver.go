@@ -6,69 +6,68 @@ package awsfirehosereceiver // import "github.com/open-telemetry/opentelemetry-c
 import (
 	"context"
 	"net/http"
-	"strings"
 
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/plog"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler"
 )
 
 // The metricsConsumer implements the firehoseConsumer
 // to use a metrics consumer and unmarshaler.
-type metricsConsumer struct {
-	// consumer passes the translated metrics on to the
+type logsConsumer struct {
+	// consumer passes the translated logs on to the
 	// next consumer.
-	consumer consumer.Metrics
-	// unmarshaler is the configured MetricsUnmarshaler
+	consumer consumer.Logs
+	// unmarshaler is the configured LogsUnmarshaler
 	// to use when processing the records.
-	unmarshaler unmarshaler.MetricsUnmarshaler
+	unmarshaler unmarshaler.LogsUnmarshaler
 }
 
-var _ firehoseConsumer = (*metricsConsumer)(nil)
+var _ firehoseConsumer = (*logsConsumer)(nil)
 
 // newMetricsReceiver creates a new instance of the receiver
 // with a metricsConsumer.
-func newMetricsReceiver(
-	config *MetricsConfig,
-	unmarshalers map[string]unmarshaler.MetricsUnmarshaler,
-	nextConsumer consumer.Metrics,
-) (*metricsConsumer, error) {
+func newLogsReceiver(
+	config *LogsConfig,
+	unmarshalers map[string]unmarshaler.LogsUnmarshaler,
+	nextConsumer consumer.Logs,
+) (*logsConsumer, error) {
 	configuredUnmarshaler := unmarshalers[config.RecordType]
 	if configuredUnmarshaler == nil {
 		return nil, errUnrecognizedRecordType
 	}
-	mc := &metricsConsumer{
+	lc := &logsConsumer{
 		consumer:    nextConsumer,
 		unmarshaler: configuredUnmarshaler,
 	}
-	return mc, nil
+	return lc, nil
 }
 
 // Consume uses the configured unmarshaler to deserialize the records into a
 // single pmetric.Metrics. If there are common attributes available, then it will
 // attach those to each of the pcommon.Resources. It will send the final result
 // to the next consumer.
-func (mc *metricsConsumer) Consume(ctx context.Context, records [][]byte, commonAttributes map[string]string) (int, error) {
+func (mc *logsConsumer) Consume(ctx context.Context, records [][]byte, commonAttributes map[string]string) (int, error) {
 	md, err := mc.unmarshaler.Unmarshal(records)
 	if err != nil {
 		return http.StatusBadRequest, err
 	}
 
 	if commonAttributes != nil {
-		applyCommonAttributes(md, commonAttributes)
+		applyCommonLogAttributes(md, commonAttributes)
 	}
 
-	err = mc.consumer.ConsumeMetrics(ctx, md)
+	err = mc.consumer.ConsumeLogs(ctx, md)
 	if err != nil {
 		return http.StatusInternalServerError, err
 	}
 	return http.StatusOK, nil
 }
 
-func applyCommonAttributes(md pmetric.Metrics, commonAttributes map[string]string) {
-	for i := 0; i < md.ResourceMetrics().Len(); i++ {
-		rm := md.ResourceMetrics().At(i)
+func applyCommonLogAttributes(md plog.Logs, commonAttributes map[string]string) {
+	for i := 0; i < md.ResourceLogs().Len(); i++ {
+		rm := md.ResourceLogs().At(i)
 		for k, v := range commonAttributes {
 			if _, found := rm.Resource().Attributes().Get(k); !found {
 				rm.Resource().Attributes().PutStr(k, v)
@@ -77,27 +76,10 @@ func applyCommonAttributes(md pmetric.Metrics, commonAttributes map[string]strin
 	}
 }
 
-// replace all non-alphanumeric characters with underscores, other than _ and -.
-func sanitizeValue(value string) string {
-	s := strings.Map(func(r rune) rune {
-		if r == '_' || r == '-' {
-			return r
-		}
-		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
-			return r
-		}
-		return '_'
-	}, value)
-	// replace runs of underscores with a single underscore
-	s = strings.ReplaceAll(s, "__", "_")
-	// trim leading and trailing underscores
-	return strings.Trim(s, "_")
-}
-
-func (mc *metricsConsumer) RecordType() string {
+func (mc *logsConsumer) RecordType() string {
 	return mc.unmarshaler.Type()
 }
 
-func (mc *metricsConsumer) TelemetryType() string {
-	return "metrics"
+func (mc *logsConsumer) TelemetryType() string {
+	return "logs"
 }

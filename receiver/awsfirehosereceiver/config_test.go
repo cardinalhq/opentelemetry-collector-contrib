@@ -31,8 +31,23 @@ func TestLoadConfig(t *testing.T) {
 	assert.NoError(t, component.ValidateConfig(cfg))
 
 	require.Equal(t, &Config{
-		RecordType: "cwmetrics",
-		AccessKey:  "some_access_key",
+		AccessKey: "some_access_key",
+		Metrics: []MetricsConfig{
+			{
+				Path:       "/metrics",
+				RecordType: "cwmetrics",
+			},
+		},
+		Logs: []LogsConfig{
+			{
+				Path:       "/logs",
+				RecordType: "cwlogs",
+			},
+			{
+				Path:       "/cloudtrail",
+				RecordType: "ctevents",
+			},
+		},
 		ServerConfig: confighttp.ServerConfig{
 			Endpoint: "0.0.0.0:4433",
 			TLSSetting: &configtls.ServerConfig{

@@ -9,7 +9,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler"
 )
 
-const typeStr = "nop"
+const typeMetricsStr = "nopMetrics"
 
 // NopMetricsUnmarshaler is a MetricsUnmarshaler that doesn't do anything
 // with the inputs and just returns the metrics and error passed in.
@@ -45,5 +45,5 @@ func (u *NopMetricsUnmarshaler) Unmarshal([][]byte) (pmetric.Metrics, error) {
 
 // Type of the serialized messages.
 func (u *NopMetricsUnmarshaler) Type() string {
-	return typeStr
+	return typeMetricsStr
 }

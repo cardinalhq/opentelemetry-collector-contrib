@@ -12,28 +12,28 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/consumer/consumertest"
-	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/plog"
 	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler/unmarshalertest"
 )
 
-type recordMetricsConsumer struct {
-	result pmetric.Metrics
+type recordLogsConsumer struct {
+	result plog.Logs
 }
 
-var _ consumer.Metrics = (*recordMetricsConsumer)(nil)
+var _ consumer.Logs = (*recordLogsConsumer)(nil)
 
-func (rc *recordMetricsConsumer) ConsumeMetrics(_ context.Context, metrics pmetric.Metrics) error {
-	rc.result = metrics
+func (rc *recordLogsConsumer) ConsumeLogs(_ context.Context, logs plog.Logs) error {
+	rc.result = logs
 	return nil
 }
 
-func (rc *recordMetricsConsumer) Capabilities() consumer.Capabilities {
+func (rc *recordLogsConsumer) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
 }
 
-func TestNewMetricsReceiver(t *testing.T) {
+func TestNewLogsReceiver(t *testing.T) {
 	testCases := map[string]struct {
 		consumer   consumer.Metrics
 		recordType string
@@ -64,7 +64,7 @@ func TestNewMetricsReceiver(t *testing.T) {
 	}
 }
 
-func TestMetricsConsumer(t *testing.T) {
+func TestLogsConsumer(t *testing.T) {
 	testErr := errors.New("test error")
 	testCases := map[string]struct {
 		unmarshalerErr error
@@ -99,11 +99,11 @@ func TestMetricsConsumer(t *testing.T) {
 	}
 
 	t.Run("WithCommonAttributes", func(t *testing.T) {
-		base := pmetric.NewMetrics()
-		base.ResourceMetrics().AppendEmpty()
-		rc := recordMetricsConsumer{}
-		mc := &metricsConsumer{
-			unmarshaler: unmarshalertest.NewWithMetrics(base),
+		base := plog.NewLogs()
+		base.ResourceLogs().AppendEmpty()
+		rc := recordLogsConsumer{}
+		mc := &logsConsumer{
+			unmarshaler: unmarshalertest.NewWithLogs(base),
 			consumer:    &rc,
 		}
 		gotStatus, gotErr := mc.Consume(context.TODO(), nil, map[string]string{
@@ -111,66 +111,23 @@ func TestMetricsConsumer(t *testing.T) {
 		})
 		require.Equal(t, http.StatusOK, gotStatus)
 		require.NoError(t, gotErr)
-		gotRms := rc.result.ResourceMetrics()
+		gotRms := rc.result.ResourceLogs()
 		require.Equal(t, 1, gotRms.Len())
 		gotRm := gotRms.At(0)
 		require.Equal(t, 1, gotRm.Resource().Attributes().Len())
 	})
 }
 
-func TestMetricsTelemetryType(t *testing.T) {
-	lc := &metricsConsumer{
-		unmarshaler: unmarshalertest.NewWithMetrics(pmetric.NewMetrics()),
+func TestLogsTelemetryType(t *testing.T) {
+	lc := &logsConsumer{
+		unmarshaler: unmarshalertest.NewWithLogs(plog.NewLogs()),
 	}
-	require.Equal(t, "metrics", lc.TelemetryType())
+	require.Equal(t, "logs", lc.TelemetryType())
 }
 
-func TestMetricsRecordType(t *testing.T) {
-	lc := &metricsConsumer{
-		unmarshaler: unmarshalertest.NewWithMetrics(pmetric.NewMetrics()),
+func TestLogsRecordType(t *testing.T) {
+	lc := &logsConsumer{
+		unmarshaler: unmarshalertest.NewWithLogs(plog.NewLogs()),
 	}
-	require.Equal(t, "nopMetrics", lc.RecordType())
-}
-
-func TestSanitizeValue(t *testing.T) {
-	testCases := map[string]struct {
-		input    string
-		expected string
-	}{
-		"EmptyString": {
-			input:    "",
-			expected: "",
-		},
-		"OnlyAlphanumeric": {
-			input:    "abc123",
-			expected: "abc123",
-		},
-		"WithUnderscore": {
-			input:    "abc_123",
-			expected: "abc_123",
-		},
-		"WithDash": {
-			input:    "abc-123",
-			expected: "abc-123",
-		},
-		"WithDot": {
-			input:    "abc.123",
-			expected: "abc_123",
-		},
-		"WithSpecialCharacters": {
-			input:    "abc!@#$%^&*()",
-			expected: "abc",
-		},
-		"WithMixedCharacters": {
-			input:    "abc_123!@#$%^&*()",
-			expected: "abc_123",
-		},
-	}
-
-	for name, testCase := range testCases {
-		t.Run(name, func(t *testing.T) {
-			got := sanitizeValue(testCase.input)
-			require.Equal(t, testCase.expected, got)
-		})
-	}
+	require.Equal(t, "nopLogs", lc.RecordType())
 }

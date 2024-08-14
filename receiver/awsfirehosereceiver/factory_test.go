@@ -29,7 +29,23 @@ func TestCreateMetricsReceiver(t *testing.T) {
 	require.NotNil(t, r)
 }
 
-func TestValidateRecordType(t *testing.T) {
-	require.NoError(t, validateRecordType(defaultRecordType))
-	require.Error(t, validateRecordType("nop"))
+func TestCreateLogsReceiver(t *testing.T) {
+	r, err := createLogsReceiver(
+		context.Background(),
+		receivertest.NewNopSettings(),
+		createDefaultConfig(),
+		consumertest.NewNop(),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, r)
+}
+
+func TestValidateMetricsRecordType(t *testing.T) {
+	require.NoError(t, validateMetricRecordType(defaultMetricsRecordType))
+	require.Error(t, validateMetricRecordType("nop"))
+}
+
+func TestValidateLogsRecordType(t *testing.T) {
+	require.NoError(t, validateLogRecordType(defaultLogsRecordType))
+	require.Error(t, validateLogRecordType("nop"))
 }

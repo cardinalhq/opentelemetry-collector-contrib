@@ -17,8 +17,12 @@ import (
 
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
+	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/receiver/receiverhelper"
 	"go.uber.org/zap"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler"
 )
 
 const (
@@ -41,6 +45,10 @@ var (
 type firehoseConsumer interface {
 	// Consume unmarshalls and consumes the records.
 	Consume(ctx context.Context, records [][]byte, commonAttributes map[string]string) (int, error)
+	// Return the metric type.  Should be "logs", "traces", or "metrics".
+	TelemetryType() string
+	// Return the underlying RecordType name.
+	RecordType() string
 }
 
 // firehoseReceiver
@@ -49,6 +57,8 @@ type firehoseReceiver struct {
 	settings receiver.Settings
 	// config is the configuration for the receiver.
 	config *Config
+	// obsrecv is the observability receiver helper for internal metrics.
+	obsrecv *receiverhelper.ObsReport
 	// server is the HTTP/HTTPS server set up to listen
 	// for requests.
 	server *http.Server
@@ -57,7 +67,15 @@ type firehoseReceiver struct {
 	shutdownWG sync.WaitGroup
 	// consumer is the firehoseConsumer to use to process/send
 	// the records in each request.
-	consumer firehoseConsumer
+	consumers map[string]firehoseConsumer
+
+	// started and its lock are used to ensure that we only start one
+	// HTTP server.  This is necessary because the OTel Collector
+	// calls Start once for each telemetry type that we are handling.
+	// Since we share the same server for all telemetry types, we need
+	// to ensure that we only start the server once, and shutdown once.
+	startedLock sync.Mutex
+	started     bool
 }
 
 // The firehoseRequest is the format of the received request body.
@@ -102,31 +120,86 @@ type firehoseCommonAttributes struct {
 }
 
 var _ receiver.Metrics = (*firehoseReceiver)(nil)
+var _ receiver.Logs = (*firehoseReceiver)(nil)
 var _ http.Handler = (*firehoseReceiver)(nil)
+
+func newFirehoseReceiver(config *Config, set receiver.Settings) (*firehoseReceiver, error) {
+	obsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
+		ReceiverID:             set.ID,
+		Transport:              "http",
+		ReceiverCreateSettings: set,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &firehoseReceiver{
+		settings:  set,
+		config:    config,
+		obsrecv:   obsrecv,
+		consumers: map[string]firehoseConsumer{},
+	}, nil
+}
+
+func (fhr *firehoseReceiver) setMetricsConsumer(unmarshalers map[string]unmarshaler.MetricsUnmarshaler, nextConsumer consumer.Metrics) error {
+	for _, metric := range fhr.config.Metrics {
+		mc, err := newMetricsReceiver(&metric, unmarshalers, nextConsumer)
+		if err != nil {
+			return err
+		}
+		if _, found := fhr.consumers[metric.Path]; found {
+			return errDuplicatePath
+		}
+		fhr.consumers[metric.Path] = mc
+	}
+	return nil
+}
+
+func (fhr *firehoseReceiver) setLogsConsumer(unmarshalers map[string]unmarshaler.LogsUnmarshaler, nextConsumer consumer.Logs) error {
+	for _, log := range fhr.config.Logs {
+		lc, err := newLogsReceiver(&log, unmarshalers, nextConsumer)
+		if err != nil {
+			return err
+		}
+		if _, found := fhr.consumers[log.Path]; found {
+			return errDuplicatePath
+		}
+		fhr.consumers[log.Path] = lc
+	}
+	return nil
+}
 
 // Start spins up the receiver's HTTP server and makes the receiver start
 // its processing.
-func (fmr *firehoseReceiver) Start(ctx context.Context, host component.Host) error {
+func (fhr *firehoseReceiver) Start(ctx context.Context, host component.Host) error {
+	fhr.startedLock.Lock()
+	if fhr.started {
+		fhr.startedLock.Unlock()
+		return nil
+	}
+	fhr.started = true
+	fhr.startedLock.Unlock()
+
 	if host == nil {
 		return errMissingHost
 	}
 
 	var err error
-	fmr.server, err = fmr.config.ServerConfig.ToServer(ctx, host, fmr.settings.TelemetrySettings, fmr)
+	fhr.server, err = fhr.config.ServerConfig.ToServer(ctx, host, fhr.settings.TelemetrySettings, fhr)
 	if err != nil {
 		return err
 	}
 
 	var listener net.Listener
-	listener, err = fmr.config.ServerConfig.ToListener(ctx)
+	listener, err = fhr.config.ServerConfig.ToListener(ctx)
 	if err != nil {
 		return err
 	}
-	fmr.shutdownWG.Add(1)
+	fhr.shutdownWG.Add(1)
 	go func() {
-		defer fmr.shutdownWG.Done()
+		defer fhr.shutdownWG.Done()
 
-		if errHTTP := fmr.server.Serve(listener); errHTTP != nil && !errors.Is(errHTTP, http.ErrServerClosed) {
+		if errHTTP := fhr.server.Serve(listener); errHTTP != nil && !errors.Is(errHTTP, http.ErrServerClosed) {
 			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(errHTTP))
 		}
 	}()
@@ -137,57 +210,65 @@ func (fmr *firehoseReceiver) Start(ctx context.Context, host component.Host) err
 // Shutdown tells the receiver that should stop reception,
 // giving it a chance to perform any necessary clean-up and
 // shutting down its HTTP server.
-func (fmr *firehoseReceiver) Shutdown(context.Context) error {
-	if fmr.server == nil {
+func (fhr *firehoseReceiver) Shutdown(context.Context) error {
+	fhr.startedLock.Lock()
+	if !fhr.started {
+		fhr.startedLock.Unlock()
 		return nil
 	}
-	err := fmr.server.Close()
-	fmr.shutdownWG.Wait()
+	fhr.started = false
+	fhr.startedLock.Unlock()
+
+	if fhr.server == nil {
+		return nil
+	}
+	err := fhr.server.Close()
+	fhr.shutdownWG.Wait()
 	return err
 }
 
 // ServeHTTP receives Firehose requests, unmarshalls them, and sends them along to the firehoseConsumer,
 // which is responsible for unmarshalling the records and sending them to the next consumer.
-func (fmr *firehoseReceiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (fhr *firehoseReceiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	requestID := r.Header.Get(headerFirehoseRequestID)
 	if requestID == "" {
-		fmr.settings.Logger.Error(
+		fhr.settings.Logger.Error(
 			"Invalid Firehose request",
 			zap.Error(errInHeaderMissingRequestID),
 		)
-		fmr.sendResponse(w, requestID, http.StatusBadRequest, errInHeaderMissingRequestID)
+		fhr.sendResponse(w, requestID, http.StatusBadRequest, errInHeaderMissingRequestID)
 		return
 	}
-	fmr.settings.Logger.Debug("Processing Firehose request", zap.String("RequestID", requestID))
+	fhr.settings.Logger.Debug("Processing Firehose request", zap.String("RequestID", requestID), zap.String("Path", r.URL.Path))
 
-	if statusCode, err := fmr.validate(r); err != nil {
-		fmr.settings.Logger.Error(
+	if statusCode, err := fhr.validate(r); err != nil {
+		fhr.settings.Logger.Error(
 			"Invalid Firehose request",
 			zap.Error(err),
 		)
-		fmr.sendResponse(w, requestID, statusCode, err)
+		fhr.sendResponse(w, requestID, statusCode, err)
 		return
 	}
 
-	body, err := fmr.getBody(r)
+	body, err := fhr.getBody(r)
 	if err != nil {
-		fmr.sendResponse(w, requestID, http.StatusBadRequest, err)
+		fhr.sendResponse(w, requestID, http.StatusBadRequest, err)
 		return
 	}
 
 	var fr firehoseRequest
 	if err = json.Unmarshal(body, &fr); err != nil {
-		fmr.sendResponse(w, requestID, http.StatusBadRequest, err)
+		fhr.sendResponse(w, requestID, http.StatusBadRequest, err)
 		return
 	}
 
 	if fr.RequestID == "" {
-		fmr.sendResponse(w, requestID, http.StatusBadRequest, errInBodyMissingRequestID)
+		fhr.sendResponse(w, requestID, http.StatusBadRequest, errInBodyMissingRequestID)
 		return
 	} else if fr.RequestID != requestID {
-		fmr.sendResponse(w, requestID, http.StatusBadRequest, errInBodyDiffRequestID)
+		fhr.sendResponse(w, requestID, http.StatusBadRequest, errInBodyDiffRequestID)
 		return
 	}
 
@@ -197,7 +278,7 @@ func (fmr *firehoseReceiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			var decoded []byte
 			decoded, err = base64.StdEncoding.DecodeString(record.Data)
 			if err != nil {
-				fmr.sendResponse(
+				fhr.sendResponse(
 					w,
 					requestID,
 					http.StatusBadRequest,
@@ -209,42 +290,71 @@ func (fmr *firehoseReceiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	commonAttributes, err := fmr.getCommonAttributes(r)
+	commonAttributes, err := fhr.getCommonAttributes(r)
 	if err != nil {
-		fmr.settings.Logger.Error(
+		fhr.settings.Logger.Error(
 			"Unable to get common attributes from request header. Will not attach attributes.",
 			zap.Error(err),
 		)
 	}
 
-	statusCode, err := fmr.consumer.Consume(ctx, records, commonAttributes)
+	consumer := fhr.consumers[r.URL.Path]
+	if consumer == nil {
+		fhr.settings.Logger.Error(
+			"Unable to find consumer for path",
+			zap.String("path", r.URL.Path),
+		)
+		fhr.sendResponse(w, requestID, http.StatusNotFound, nil)
+		return
+	}
+	fhr.startOp(ctx, consumer.TelemetryType())
+	statusCode, err := consumer.Consume(ctx, records, commonAttributes)
+	fhr.endOp(ctx, consumer.TelemetryType(), consumer.RecordType(), len(records), err)
 	if err != nil {
-		fmr.settings.Logger.Error(
+		fhr.settings.Logger.Error(
 			"Unable to consume records",
 			zap.Error(err),
 		)
-		fmr.sendResponse(w, requestID, statusCode, err)
+		fhr.sendResponse(w, requestID, statusCode, err)
 		return
 	}
 
-	fmr.sendResponse(w, requestID, http.StatusOK, nil)
+	fhr.sendResponse(w, requestID, http.StatusOK, nil)
+}
+
+func (fhr *firehoseReceiver) startOp(ctx context.Context, telemetryType string) {
+	switch telemetryType {
+	case "logs":
+		fhr.obsrecv.StartLogsOp(ctx)
+	case "metrics":
+		fhr.obsrecv.StartMetricsOp(ctx)
+	}
+}
+
+func (fhr *firehoseReceiver) endOp(ctx context.Context, telemetryType string, recordType string, recordCount int, err error) {
+	switch telemetryType {
+	case "logs":
+		fhr.obsrecv.EndLogsOp(ctx, recordType, recordCount, err)
+	case "metrics":
+		fhr.obsrecv.EndMetricsOp(ctx, recordType, recordCount, err)
+	}
 }
 
 // validate checks the Firehose access key in the header against
 // the one passed into the Config
-func (fmr *firehoseReceiver) validate(r *http.Request) (int, error) {
-	if string(fmr.config.AccessKey) == "" {
+func (fhr *firehoseReceiver) validate(r *http.Request) (int, error) {
+	if string(fhr.config.AccessKey) == "" {
 		// No access key is configured - accept all requests.
 		return http.StatusAccepted, nil
 	}
-	if accessKey := r.Header.Get(headerFirehoseAccessKey); accessKey == string(fmr.config.AccessKey) {
+	if accessKey := r.Header.Get(headerFirehoseAccessKey); accessKey == string(fhr.config.AccessKey) {
 		return http.StatusAccepted, nil
 	}
 	return http.StatusUnauthorized, errInvalidAccessKey
 }
 
 // getBody reads the body from the request as a slice of bytes.
-func (fmr *firehoseReceiver) getBody(r *http.Request) ([]byte, error) {
+func (fhr *firehoseReceiver) getBody(r *http.Request) ([]byte, error) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return nil, err
@@ -257,7 +367,7 @@ func (fmr *firehoseReceiver) getBody(r *http.Request) ([]byte, error) {
 }
 
 // getCommonAttributes unmarshalls the common attributes from the request header
-func (fmr *firehoseReceiver) getCommonAttributes(r *http.Request) (map[string]string, error) {
+func (fhr *firehoseReceiver) getCommonAttributes(r *http.Request) (map[string]string, error) {
 	attributes := make(map[string]string)
 	if commonAttributes := r.Header.Get(headerFirehoseCommonAttributes); commonAttributes != "" {
 		var fca firehoseCommonAttributes
@@ -270,7 +380,7 @@ func (fmr *firehoseReceiver) getCommonAttributes(r *http.Request) (map[string]st
 }
 
 // sendResponse writes a response to Firehose in the expected format.
-func (fmr *firehoseReceiver) sendResponse(w http.ResponseWriter, requestID string, statusCode int, err error) {
+func (fhr *firehoseReceiver) sendResponse(w http.ResponseWriter, requestID string, statusCode int, err error) {
 	var errorMessage string
 	if err != nil {
 		errorMessage = err.Error()
@@ -285,6 +395,6 @@ func (fmr *firehoseReceiver) sendResponse(w http.ResponseWriter, requestID strin
 	w.Header().Set(headerContentLength, fmt.Sprintf("%d", len(payload)))
 	w.WriteHeader(statusCode)
 	if _, err = w.Write(payload); err != nil {
-		fmr.settings.Logger.Error("Failed to send response", zap.Error(err))
+		fhr.settings.Logger.Error("Failed to send response", zap.Error(err))
 	}
 }

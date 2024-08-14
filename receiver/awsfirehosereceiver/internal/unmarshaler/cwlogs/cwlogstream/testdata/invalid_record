@@ -1,0 +1,10 @@
+{
+  "owner": "",
+  "logGroup": "CloudTrail/logs",
+  "logStream": "111111111111_CloudTrail/logs_us-east-1",
+  "subscriptionFilters": [
+    "Destination"
+  ],
+  "messageType": "DATA_MESSAGE",
+  "logEvents": []
+}
