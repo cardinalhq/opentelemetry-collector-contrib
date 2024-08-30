@@ -4,8 +4,11 @@
 package cwlogstream // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler/cwlogstream"
 
 import (
+	"bytes"
+	"compress/gzip"
 	"encoding/json"
 	"errors"
+	"io"
 	"time"
 
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -45,6 +48,25 @@ func NewUnmarshaler(logger *zap.Logger) *Unmarshaler {
 func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 	logs := plog.NewLogs()
 	for recordIndex, record := range records {
+		if len(record) < 2 {
+			u.logger.Error(
+				"Invalid record (too short)",
+				zap.Int("record_index", recordIndex),
+			)
+			continue
+		}
+		if record[0] == 0x1f && record[1] == 0x8b {
+			var err error
+			record, err = decompress(record)
+			if err != nil {
+				u.logger.Error(
+					"Unable to inflate input",
+					zap.Error(err),
+					zap.Int("record_index", recordIndex),
+				)
+				continue
+			}
+		}
 		var log cWLog
 		err := json.Unmarshal(record, &log)
 		if err != nil {
@@ -84,6 +106,22 @@ func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 	}
 
 	return logs, nil
+}
+
+// decompress handles a gzip'd payload.
+func decompress(data []byte) ([]byte, error) {
+	reader, err := gzip.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Close()
+
+	uncompressedData, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	return uncompressedData, nil
 }
 
 // isValid validates that the cWLog has been unmarshalled correctly.

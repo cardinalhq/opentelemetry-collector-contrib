@@ -69,6 +69,11 @@ type firehoseReceiver struct {
 	// the records in each request.
 	consumers map[string]firehoseConsumer
 
+	// started and its lock are used to ensure that we only start one
+	// HTTP server.  This is necessary because the OTel Collector
+	// calls Start once for each telemetry type that we are handling.
+	// Since we share the same server for all telemetry types, we need
+	// to ensure that we only start the server once, and shutdown once.
 	startedLock sync.Mutex
 	started     bool
 }
@@ -119,7 +124,6 @@ var _ receiver.Logs = (*firehoseReceiver)(nil)
 var _ http.Handler = (*firehoseReceiver)(nil)
 
 func newFirehoseReceiver(config *Config, set receiver.Settings) (*firehoseReceiver, error) {
-	set.Logger.Info("******************** Creating new AWS Firehose receiver")
 	obsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 		ReceiverID:             set.ID,
 		Transport:              "http",
