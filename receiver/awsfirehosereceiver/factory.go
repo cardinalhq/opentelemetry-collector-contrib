@@ -120,7 +120,9 @@ func createMetricsReceiver(
 	if err != nil {
 		return nil, err
 	}
-	fhr.setMetricsConsumer(defaultMetricsUnmarshalers(set.Logger), nextConsumer)
+	if err := fhr.setMetricsConsumer(defaultMetricsUnmarshalers(set.Logger), nextConsumer); err != nil {
+		return nil, err
+	}
 	return fhr, nil
 }
 
@@ -135,7 +137,9 @@ func createLogsReceiver(
 	if err != nil {
 		return nil, err
 	}
-	fhr.setLogsConsumer(defaultLogsUnmarshalers(set.Logger), nextConsumer)
+	if err := fhr.setLogsConsumer(defaultLogsUnmarshalers(set.Logger), nextConsumer); err != nil {
+		return nil, err
+	}
 	return fhr, nil
 }
 

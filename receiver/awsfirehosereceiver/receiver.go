@@ -15,13 +15,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/receiverhelper"
 	"go.uber.org/zap"
+
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler"
 )
 
 const (
@@ -149,14 +150,9 @@ func (fhr *firehoseReceiver) setMetricsConsumer(unmarshalers map[string]unmarsha
 	}
 
 	for _, metric := range fhr.config.Metrics {
-		configuredUnmarshaler := unmarshalers[metric.RecordType]
-		if configuredUnmarshaler == nil {
-			return errUnrecognizedRecordType
-		}
-		mc := &metricsConsumer{
-			consumer:     nextConsumer,
-			unmarshaler:  configuredUnmarshaler,
-			namePrefixes: metric.NamePrefixes,
+		mc, err := newMetricsReceiver(&metric, unmarshalers, nextConsumer)
+		if err != nil {
+			return err
 		}
 		if _, found := fhr.consumers[metric.Path]; found {
 			return errDuplicatePath
@@ -168,13 +164,9 @@ func (fhr *firehoseReceiver) setMetricsConsumer(unmarshalers map[string]unmarsha
 
 func (fhr *firehoseReceiver) setLogsConsumer(unmarshalers map[string]unmarshaler.LogsUnmarshaler, nextConsumer consumer.Logs) error {
 	for _, log := range fhr.config.Logs {
-		configuredUnmarshaler := unmarshalers[log.RecordType]
-		if configuredUnmarshaler == nil {
-			return errUnrecognizedRecordType
-		}
-		lc := &logsConsumer{
-			consumer:    nextConsumer,
-			unmarshaler: configuredUnmarshaler,
+		lc, err := newLogsReceiver(&log, unmarshalers, nextConsumer)
+		if err != nil {
+			return err
 		}
 		if _, found := fhr.consumers[log.Path]; found {
 			return errDuplicatePath

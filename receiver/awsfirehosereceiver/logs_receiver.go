@@ -33,7 +33,6 @@ func newLogsReceiver(
 	unmarshalers map[string]unmarshaler.LogsUnmarshaler,
 	nextConsumer consumer.Logs,
 ) (*logsConsumer, error) {
-
 	configuredUnmarshaler := unmarshalers[config.RecordType]
 	if configuredUnmarshaler == nil {
 		return nil, errUnrecognizedRecordType

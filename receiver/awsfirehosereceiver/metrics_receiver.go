@@ -38,7 +38,6 @@ func newMetricsReceiver(
 	unmarshalers map[string]unmarshaler.MetricsUnmarshaler,
 	nextConsumer consumer.Metrics,
 ) (*metricsConsumer, error) {
-
 	configuredUnmarshaler := unmarshalers[config.RecordType]
 	if configuredUnmarshaler == nil {
 		return nil, errUnrecognizedRecordType
