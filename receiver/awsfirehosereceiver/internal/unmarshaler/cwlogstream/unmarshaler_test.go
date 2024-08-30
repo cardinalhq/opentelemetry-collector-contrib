@@ -34,6 +34,11 @@ func TestUnmarshal(t *testing.T) {
 			filename: "invalid_record",
 			wantErr:  errInvalidRecords,
 		},
+		"Compressed record": {
+			filename:           "compressed_record.gz",
+			wantResourceCount:  1,
+			wantLogRecordCount: 3,
+		},
 	}
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
