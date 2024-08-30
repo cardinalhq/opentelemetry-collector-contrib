@@ -30,6 +30,6 @@ func TestCreateMetricsReceiver(t *testing.T) {
 }
 
 func TestValidateRecordType(t *testing.T) {
-	require.NoError(t, validateRecordType(defaultRecordType))
-	require.Error(t, validateRecordType("nop"))
+	require.NoError(t, validateMetricRecordType(defaultMetricsRecordType))
+	require.Error(t, validateMetricRecordType("nop"))
 }

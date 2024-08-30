@@ -11,7 +11,6 @@ import (
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"go.opentelemetry.io/collector/receiver"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler"
 )
@@ -35,28 +34,21 @@ var _ firehoseConsumer = (*metricsConsumer)(nil)
 // newMetricsReceiver creates a new instance of the receiver
 // with a metricsConsumer.
 func newMetricsReceiver(
-	config *Config,
-	set receiver.Settings,
+	config *MetricsConfig,
 	unmarshalers map[string]unmarshaler.MetricsUnmarshaler,
 	nextConsumer consumer.Metrics,
-) (receiver.Metrics, error) {
+) (*metricsConsumer, error) {
 
 	configuredUnmarshaler := unmarshalers[config.RecordType]
 	if configuredUnmarshaler == nil {
 		return nil, errUnrecognizedRecordType
 	}
-
 	mc := &metricsConsumer{
 		consumer:     nextConsumer,
 		unmarshaler:  configuredUnmarshaler,
 		namePrefixes: config.NamePrefixes,
 	}
-
-	return &firehoseReceiver{
-		settings: set,
-		config:   config,
-		consumer: mc,
-	}, nil
+	return mc, nil
 }
 
 // Consume uses the configured unmarshaler to deserialize the records into a
@@ -145,4 +137,12 @@ func sanitizeValue(value string) string {
 	s = strings.ReplaceAll(s, "__", "_")
 	// trim leading and trailing underscores
 	return strings.Trim(s, "_")
+}
+
+func (mc *metricsConsumer) RecordType() string {
+	return mc.unmarshaler.Type()
+}
+
+func (mc *metricsConsumer) TelemetryType() string {
+	return "metrics"
 }
