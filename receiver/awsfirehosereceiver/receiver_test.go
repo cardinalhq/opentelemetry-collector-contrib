@@ -69,8 +69,14 @@ func TestStart(t *testing.T) {
 			cfg := &Config{
 				Metrics: []MetricsConfig{
 					{
-						Path:       "/",
+						Path:       "/metrics",
 						RecordType: defaultMetricsRecordType,
+					},
+				},
+				Logs: []LogsConfig{
+					{
+						Path:       "/logs",
+						RecordType: defaultLogsRecordType,
 					},
 				},
 			}
@@ -116,14 +122,21 @@ func TestFirehoseRequest(t *testing.T) {
 	cfg := &Config{
 		Metrics: []MetricsConfig{
 			{
-				Path:       "/",
+				Path:       "/metrics",
 				RecordType: defaultMetricsRecordType,
+			},
+		},
+		Logs: []LogsConfig{
+			{
+				Path:       "/logs",
+				RecordType: defaultLogsRecordType,
 			},
 		},
 		AccessKey: testFirehoseAccessKey,
 	}
 	var noRecords []firehoseRecord
 	testCases := map[string]struct {
+		path             string
 		headers          map[string]string
 		commonAttributes map[string]string
 		body             any
@@ -132,6 +145,7 @@ func TestFirehoseRequest(t *testing.T) {
 		wantErr          error
 	}{
 		"WithoutRequestId/Header": {
+			path: "/metrics",
 			headers: map[string]string{
 				headerFirehoseRequestID: "",
 			},
@@ -140,6 +154,7 @@ func TestFirehoseRequest(t *testing.T) {
 			wantErr:        errInHeaderMissingRequestID,
 		},
 		"WithDifferentAccessKey": {
+			path: "/metrics",
 			headers: map[string]string{
 				headerFirehoseAccessKey: "test",
 			},
@@ -148,6 +163,7 @@ func TestFirehoseRequest(t *testing.T) {
 			wantErr:        errInvalidAccessKey,
 		},
 		"WithNoAccessKey": {
+			path: "/metrics",
 			headers: map[string]string{
 				headerFirehoseAccessKey: "",
 			},
@@ -156,6 +172,7 @@ func TestFirehoseRequest(t *testing.T) {
 			wantErr:        errInvalidAccessKey,
 		},
 		"WithoutRequestId/Body": {
+			path: "/metrics",
 			headers: map[string]string{
 				headerFirehoseRequestID: testFirehoseRequestID,
 			},
@@ -164,6 +181,7 @@ func TestFirehoseRequest(t *testing.T) {
 			wantErr:        errInBodyMissingRequestID,
 		},
 		"WithDifferentRequestIds": {
+			path: "/metrics",
 			headers: map[string]string{
 				headerFirehoseRequestID: testFirehoseRequestID,
 			},
@@ -172,21 +190,25 @@ func TestFirehoseRequest(t *testing.T) {
 			wantErr:        errInBodyDiffRequestID,
 		},
 		"WithInvalidBody": {
+			path:           "/metrics",
 			body:           "{ test: ",
 			wantStatusCode: http.StatusBadRequest,
 			wantErr:        errors.New("json: cannot unmarshal string into Go value of type awsfirehosereceiver.firehoseRequest"),
 		},
 		"WithNoRecords": {
+			path:           "/metrics",
 			body:           testFirehoseRequest(testFirehoseRequestID, noRecords),
 			wantStatusCode: http.StatusOK,
 		},
 		"WithFirehoseConsumerError": {
+			path:           "/metrics",
 			body:           testFirehoseRequest(testFirehoseRequestID, noRecords),
 			consumer:       newNopFirehoseConsumer(http.StatusInternalServerError, firehoseConsumerErr),
 			wantStatusCode: http.StatusInternalServerError,
 			wantErr:        firehoseConsumerErr,
 		},
 		"WithCorruptBase64Records": {
+			path: "/metrics",
 			body: testFirehoseRequest(testFirehoseRequestID, []firehoseRecord{
 				{Data: "XXXXXaGVsbG8="},
 			}),
@@ -194,12 +216,14 @@ func TestFirehoseRequest(t *testing.T) {
 			wantErr:        fmt.Errorf("unable to base64 decode the record at index 0: %w", base64.CorruptInputError(12)),
 		},
 		"WithValidRecords": {
+			path: "/metrics",
 			body: testFirehoseRequest(testFirehoseRequestID, []firehoseRecord{
 				testFirehoseRecord("test"),
 			}),
 			wantStatusCode: http.StatusOK,
 		},
 		"WithValidRecords/CommonAttributes": {
+			path: "/metrics",
 			body: testFirehoseRequest(testFirehoseRequestID, []firehoseRecord{
 				testFirehoseRecord("test"),
 			}),
@@ -207,6 +231,11 @@ func TestFirehoseRequest(t *testing.T) {
 				"TestAttribute": "common",
 			},
 			wantStatusCode: http.StatusOK,
+		},
+		"InvalidPath": {
+			path:           "/invalid",
+			body:           testFirehoseRequest(testFirehoseRequestID, noRecords),
+			wantStatusCode: http.StatusNotFound,
 		},
 	}
 	for name, testCase := range testCases {
@@ -216,7 +245,7 @@ func TestFirehoseRequest(t *testing.T) {
 
 			requestBody := bytes.NewBuffer(body)
 
-			request := httptest.NewRequest("POST", "/", requestBody)
+			request := httptest.NewRequest("POST", testCase.path, requestBody)
 			request.Header.Set(headerContentType, "application/json")
 			request.Header.Set(headerContentLength, fmt.Sprintf("%d", requestBody.Len()))
 			request.Header.Set(headerFirehoseRequestID, testFirehoseRequestID)
@@ -258,14 +287,22 @@ func TestFirehoseRequest(t *testing.T) {
 
 // testFirehoseReceiver is a convenience function for creating a test firehoseReceiver
 func testFirehoseReceiver(t *testing.T, config *Config, consumer firehoseConsumer) *firehoseReceiver {
-	return &firehoseReceiver{
-		settings: receivertest.NewNopSettings(),
-		config:   config,
-		consumers: map[string]firehoseConsumer{
-			"/": consumer,
-		},
-		obsrecv: nopObsRecv(t),
+	fhr := &firehoseReceiver{
+		settings:  receivertest.NewNopSettings(),
+		config:    config,
+		consumers: map[string]firehoseConsumer{},
+		obsrecv:   nopObsRecv(t),
 	}
+
+	for _, mc := range config.Metrics {
+		fhr.consumers[mc.Path] = consumer
+	}
+
+	for _, lc := range config.Logs {
+		fhr.consumers[lc.Path] = consumer
+	}
+
+	return fhr
 }
 
 func nopObsRecv(t *testing.T) *receiverhelper.ObsReport {

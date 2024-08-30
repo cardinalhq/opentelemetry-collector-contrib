@@ -117,7 +117,7 @@ var _ http.Handler = (*firehoseReceiver)(nil)
 func newFirehoseReceiver(config *Config, set receiver.Settings) (*firehoseReceiver, error) {
 	obsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
 		ReceiverID:             set.ID,
-		Transport:              "awsfirehose",
+		Transport:              "http",
 		ReceiverCreateSettings: set,
 	})
 	if err != nil {
@@ -291,23 +291,9 @@ func (fhr *firehoseReceiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		fhr.sendResponse(w, requestID, http.StatusNotFound, nil)
 		return
 	}
-	switch consumer.TelemetryType() {
-	case "logs":
-		fhr.obsrecv.StartLogsOp(ctx)
-	case "traces":
-		fhr.obsrecv.StartTracesOp(ctx)
-	case "metrics":
-		fhr.obsrecv.StartMetricsOp(ctx)
-	}
+	fhr.startOp(ctx, consumer.TelemetryType())
 	statusCode, err := consumer.Consume(ctx, records, commonAttributes)
-	switch consumer.TelemetryType() {
-	case "logs":
-		fhr.obsrecv.EndLogsOp(ctx, consumer.RecordType(), len(records), err)
-	case "traces":
-		fhr.obsrecv.EndTracesOp(ctx, consumer.RecordType(), len(records), err)
-	case "metrics":
-		fhr.obsrecv.EndMetricsOp(ctx, consumer.RecordType(), len(records), err)
-	}
+	fhr.endOp(ctx, consumer.TelemetryType(), consumer.RecordType(), len(records), err)
 	if err != nil {
 		fhr.settings.Logger.Error(
 			"Unable to consume records",
@@ -318,6 +304,24 @@ func (fhr *firehoseReceiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	fhr.sendResponse(w, requestID, http.StatusOK, nil)
+}
+
+func (fhr *firehoseReceiver) startOp(ctx context.Context, telemetryType string) {
+	switch telemetryType {
+	case "logs":
+		fhr.obsrecv.StartLogsOp(ctx)
+	case "metrics":
+		fhr.obsrecv.StartMetricsOp(ctx)
+	}
+}
+
+func (fhr *firehoseReceiver) endOp(ctx context.Context, telemetryType string, recordType string, recordCount int, err error) {
+	switch telemetryType {
+	case "logs":
+		fhr.obsrecv.EndLogsOp(ctx, recordType, recordCount, err)
+	case "metrics":
+		fhr.obsrecv.EndMetricsOp(ctx, recordType, recordCount, err)
+	}
 }
 
 // validate checks the Firehose access key in the header against

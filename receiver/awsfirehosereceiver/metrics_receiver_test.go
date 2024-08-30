@@ -19,18 +19,18 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler/unmarshalertest"
 )
 
-type recordConsumer struct {
+type recordMetricsConsumer struct {
 	result pmetric.Metrics
 }
 
-var _ consumer.Metrics = (*recordConsumer)(nil)
+var _ consumer.Metrics = (*recordMetricsConsumer)(nil)
 
-func (rc *recordConsumer) ConsumeMetrics(_ context.Context, metrics pmetric.Metrics) error {
+func (rc *recordMetricsConsumer) ConsumeMetrics(_ context.Context, metrics pmetric.Metrics) error {
 	rc.result = metrics
 	return nil
 }
 
-func (rc *recordConsumer) Capabilities() consumer.Capabilities {
+func (rc *recordMetricsConsumer) Capabilities() consumer.Capabilities {
 	return consumer.Capabilities{MutatesData: false}
 }
 
@@ -102,7 +102,7 @@ func TestMetricsConsumer(t *testing.T) {
 	t.Run("WithCommonAttributes", func(t *testing.T) {
 		base := pmetric.NewMetrics()
 		base.ResourceMetrics().AppendEmpty()
-		rc := recordConsumer{}
+		rc := recordMetricsConsumer{}
 		mc := &metricsConsumer{
 			unmarshaler: unmarshalertest.NewWithMetrics(base),
 			consumer:    &rc,
@@ -117,6 +117,20 @@ func TestMetricsConsumer(t *testing.T) {
 		gotRm := gotRms.At(0)
 		require.Equal(t, 1, gotRm.Resource().Attributes().Len())
 	})
+}
+
+func TestMetricsTelemetryType(t *testing.T) {
+	lc := &metricsConsumer{
+		unmarshaler: unmarshalertest.NewWithMetrics(pmetric.NewMetrics()),
+	}
+	require.Equal(t, "metrics", lc.TelemetryType())
+}
+
+func TestMetricsRecordType(t *testing.T) {
+	lc := &metricsConsumer{
+		unmarshaler: unmarshalertest.NewWithMetrics(pmetric.NewMetrics()),
+	}
+	require.Equal(t, "nopMetrics", lc.RecordType())
 }
 
 func TestSanitizeValue(t *testing.T) {
