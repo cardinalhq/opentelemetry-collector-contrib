@@ -116,7 +116,7 @@ func createMetricsReceiver(
 	nextConsumer consumer.Metrics,
 ) (receiver.Metrics, error) {
 	rcfg := cfg.(*Config)
-	fhr, err := getSharedReceiver(set, rcfg)
+	fhr, err := getSharedReceiver(cfg, set, rcfg)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func createLogsReceiver(
 	nextConsumer consumer.Logs,
 ) (receiver.Logs, error) {
 	rcfg := cfg.(*Config)
-	fhr, err := getSharedReceiver(set, rcfg)
+	fhr, err := getSharedReceiver(cfg, set, rcfg)
 	if err != nil {
 		return nil, err
 	}
@@ -143,9 +143,9 @@ func createLogsReceiver(
 	return fhr, nil
 }
 
-func getSharedReceiver(set receiver.Settings, cfg *Config) (*firehoseReceiver, error) {
+func getSharedReceiver(key component.Config, set receiver.Settings, cfg *Config) (*firehoseReceiver, error) {
 	var err error
-	r := receivers.GetOrAdd(set.ID, func() (rr component.Component) {
+	r := receivers.GetOrAdd(key, func() (rr component.Component) {
 		rr, err = newFirehoseReceiver(cfg, set)
 		return rr
 	})
