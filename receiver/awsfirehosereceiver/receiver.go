@@ -68,6 +68,9 @@ type firehoseReceiver struct {
 	// consumer is the firehoseConsumer to use to process/send
 	// the records in each request.
 	consumers map[string]firehoseConsumer
+
+	startedLock sync.Mutex
+	started     bool
 }
 
 // The firehoseRequest is the format of the received request body.
@@ -179,6 +182,14 @@ func (fhr *firehoseReceiver) setLogsConsumer(unmarshalers map[string]unmarshaler
 // Start spins up the receiver's HTTP server and makes the receiver start
 // its processing.
 func (fhr *firehoseReceiver) Start(ctx context.Context, host component.Host) error {
+	fhr.startedLock.Lock()
+	if fhr.started {
+		fhr.startedLock.Unlock()
+		return nil
+	}
+	fhr.started = true
+	fhr.startedLock.Unlock()
+
 	if host == nil {
 		return errMissingHost
 	}
@@ -210,6 +221,14 @@ func (fhr *firehoseReceiver) Start(ctx context.Context, host component.Host) err
 // giving it a chance to perform any necessary clean-up and
 // shutting down its HTTP server.
 func (fhr *firehoseReceiver) Shutdown(context.Context) error {
+	fhr.startedLock.Lock()
+	if !fhr.started {
+		fhr.startedLock.Unlock()
+		return nil
+	}
+	fhr.started = false
+	fhr.startedLock.Unlock()
+
 	if fhr.server == nil {
 		return nil
 	}
