@@ -133,6 +133,21 @@ func newFirehoseReceiver(config *Config, set receiver.Settings) (*firehoseReceiv
 }
 
 func (fhr *firehoseReceiver) setMetricsConsumer(unmarshalers map[string]unmarshaler.MetricsUnmarshaler, nextConsumer consumer.Metrics) error {
+	if len(fhr.config.Metrics) == 0 {
+		fhr.settings.Logger.Warn("Handling old configuration.  Please update to the new configuration format.")
+		fhr.settings.Logger.Warn("Creating a metrics consumer for path /")
+		mc := &metricsConsumer{
+			consumer:     nextConsumer,
+			unmarshaler:  unmarshalers[fhr.config.RecordType],
+			namePrefixes: fhr.config.NamePrefixes,
+		}
+		if _, found := fhr.consumers["/"]; found {
+			return errDuplicatePath
+		}
+		fhr.consumers["/"] = mc
+		return nil
+	}
+
 	for _, metric := range fhr.config.Metrics {
 		configuredUnmarshaler := unmarshalers[metric.RecordType]
 		if configuredUnmarshaler == nil {
