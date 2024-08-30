@@ -145,7 +145,7 @@ func createLogsReceiver(
 
 func getSharedReceiver(set receiver.Settings, cfg *Config) (*firehoseReceiver, error) {
 	var err error
-	r := receivers.GetOrAdd(cfg, func() (rr component.Component) {
+	r := receivers.GetOrAdd(set.ID, func() (rr component.Component) {
 		rr, err = newFirehoseReceiver(cfg, set)
 		return rr
 	})
