@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/confighttp"
+	"go.opentelemetry.io/collector/receiver/receiverhelper"
 	"go.opentelemetry.io/collector/receiver/receivertest"
 )
 
@@ -43,6 +44,14 @@ func (nfc *nopFirehoseConsumer) Consume(context.Context, [][]byte, map[string]st
 	return nfc.statusCode, nfc.err
 }
 
+func (nfc *nopFirehoseConsumer) TelemetryType() string {
+	return "metrics"
+}
+
+func (nfc *nopFirehoseConsumer) RecordType() string {
+	return "nop"
+}
+
 func TestStart(t *testing.T) {
 	testCases := map[string]struct {
 		host    component.Host
@@ -58,10 +67,15 @@ func TestStart(t *testing.T) {
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			cfg := &Config{
-				RecordType: defaultRecordType,
+				Metrics: []MetricsConfig{
+					{
+						Path:       "/",
+						RecordType: defaultMetricsRecordType,
+					},
+				},
 			}
 			ctx := context.TODO()
-			r := testFirehoseReceiver(cfg, nil)
+			r := testFirehoseReceiver(t, cfg, nil)
 			got := r.Start(ctx, testCase.host)
 			require.Equal(t, testCase.wantErr, got)
 			if r.server != nil {
@@ -76,13 +90,18 @@ func TestStart(t *testing.T) {
 			require.NoError(t, listener.Close())
 		})
 		cfg := &Config{
-			RecordType: defaultRecordType,
+			Metrics: []MetricsConfig{
+				{
+					Path:       "/",
+					RecordType: defaultMetricsRecordType,
+				},
+			},
 			ServerConfig: confighttp.ServerConfig{
 				Endpoint: listener.Addr().String(),
 			},
 		}
 		ctx := context.TODO()
-		r := testFirehoseReceiver(cfg, nil)
+		r := testFirehoseReceiver(t, cfg, nil)
 		got := r.Start(ctx, componenttest.NewNopHost())
 		require.Error(t, got)
 		if r.server != nil {
@@ -95,8 +114,13 @@ func TestFirehoseRequest(t *testing.T) {
 	defaultConsumer := newNopFirehoseConsumer(http.StatusOK, nil)
 	firehoseConsumerErr := errors.New("firehose consumer error")
 	cfg := &Config{
-		RecordType: defaultRecordType,
-		AccessKey:  testFirehoseAccessKey,
+		Metrics: []MetricsConfig{
+			{
+				Path:       "/",
+				RecordType: defaultMetricsRecordType,
+			},
+		},
+		AccessKey: testFirehoseAccessKey,
 	}
 	var noRecords []firehoseRecord
 	testCases := map[string]struct {
@@ -214,7 +238,7 @@ func TestFirehoseRequest(t *testing.T) {
 			if consumer == nil {
 				consumer = defaultConsumer
 			}
-			r := testFirehoseReceiver(cfg, consumer)
+			r := testFirehoseReceiver(t, cfg, consumer)
 
 			got := httptest.NewRecorder()
 			r.ServeHTTP(got, request)
@@ -233,14 +257,26 @@ func TestFirehoseRequest(t *testing.T) {
 }
 
 // testFirehoseReceiver is a convenience function for creating a test firehoseReceiver
-func testFirehoseReceiver(config *Config, consumer firehoseConsumer) *firehoseReceiver {
+func testFirehoseReceiver(t *testing.T, config *Config, consumer firehoseConsumer) *firehoseReceiver {
 	return &firehoseReceiver{
 		settings: receivertest.NewNopSettings(),
 		config:   config,
-		consumer: consumer,
+		consumers: map[string]firehoseConsumer{
+			"/": consumer,
+		},
+		obsrecv: nopObsRecv(t),
 	}
 }
 
+func nopObsRecv(t *testing.T) *receiverhelper.ObsReport {
+	obsrecv, err := receiverhelper.NewObsReport(receiverhelper.ObsReportSettings{
+		ReceiverID:             component.MustNewID("awsfirehose"),
+		Transport:              "http",
+		ReceiverCreateSettings: receivertest.NewNopSettings(),
+	})
+	require.NoError(t, err)
+	return obsrecv
+}
 func testFirehoseRequest(requestID string, records []firehoseRecord) firehoseRequest {
 	return firehoseRequest{
 		RequestID: requestID,

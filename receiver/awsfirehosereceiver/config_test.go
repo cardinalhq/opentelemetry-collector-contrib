@@ -31,16 +31,27 @@ func TestLoadConfig(t *testing.T) {
 	assert.NoError(t, component.ValidateConfig(cfg))
 
 	require.Equal(t, &Config{
-		RecordType: "cwmetrics",
-		AccessKey:  "some_access_key",
-		NamePrefixes: []NamePrefixConfig{
+		AccessKey: "some_access_key",
+		Metrics: []MetricsConfig{
 			{
-				AttributeName: "alice",
-				Default:       "alice",
+				Path:       "/metrics",
+				RecordType: "cwmetrics",
+				NamePrefixes: []NamePrefixConfig{
+					{
+						AttributeName: "alice",
+						Default:       "alice",
+					},
+					{
+						AttributeName: "bob",
+						Default:       "bob",
+					},
+				},
 			},
+		},
+		Logs: []LogsConfig{
 			{
-				AttributeName: "bob",
-				Default:       "bob",
+				Path:       "/logs",
+				RecordType: "cwlogs",
 			},
 		},
 		ServerConfig: confighttp.ServerConfig{

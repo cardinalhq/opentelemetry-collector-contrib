@@ -3,7 +3,8 @@ module github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfir
 go 1.22.0
 
 require (
-	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.109.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.108.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent v0.108.0
 	github.com/stretchr/testify v1.9.0
 	go.opentelemetry.io/collector/component v0.109.1-0.20240923174701-20f73e2294b5
 	go.opentelemetry.io/collector/component/componentstatus v0.109.1-0.20240923174701-20f73e2294b5

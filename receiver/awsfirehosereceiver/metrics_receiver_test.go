@@ -14,7 +14,6 @@ import (
 	"go.opentelemetry.io/collector/consumer/consumertest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
-	"go.opentelemetry.io/collector/receiver/receivertest"
 	"go.uber.org/zap"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler/unmarshalertest"
@@ -50,10 +49,9 @@ func TestNewMetricsReceiver(t *testing.T) {
 	for name, testCase := range testCases {
 		t.Run(name, func(t *testing.T) {
 			cfg := createDefaultConfig().(*Config)
-			cfg.RecordType = testCase.recordType
+			cfg.Metrics[0].RecordType = testCase.recordType
 			got, err := newMetricsReceiver(
-				cfg,
-				receivertest.NewNopSettings(),
+				&cfg.Metrics[0],
 				defaultMetricsUnmarshalers(zap.NewNop()),
 				testCase.consumer,
 			)
