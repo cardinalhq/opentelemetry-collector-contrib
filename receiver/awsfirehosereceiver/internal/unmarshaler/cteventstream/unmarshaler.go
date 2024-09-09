@@ -59,10 +59,6 @@ func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 			}
 		}
 
-		u.logger.Info("----------------------------------------------")
-		u.logger.Info(string(record))
-		u.logger.Info("----------------------------------------------")
-
 		var log cWLog
 		err := json.Unmarshal(record, &log)
 		if err != nil {

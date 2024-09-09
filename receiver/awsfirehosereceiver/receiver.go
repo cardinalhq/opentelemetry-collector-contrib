@@ -313,6 +313,8 @@ func (fhr *firehoseReceiver) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		)
 	}
 
+	fhr.settings.Logger.Info("paths configured", zap.Any("consumers", fhr.consumers))
+
 	consumer := fhr.consumers[r.URL.Path]
 	if consumer == nil {
 		fhr.settings.Logger.Error(
