@@ -17,15 +17,17 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/metadata"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler/cteventstream"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler/cwlogstream"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler/cwmetricstream"
 )
 
 const (
-	defaultMetricsRecordType = cwmetricstream.TypeStr
-	defaultLogsRecordType    = cwlogstream.TypeStr
-	defaultEndpoint          = "0.0.0.0:4433"
-	defaultPort              = 4433
+	defaultMetricsRecordType    = cwmetricstream.TypeStr
+	defaultLogsRecordType       = cwlogstream.TypeStr
+	defaultCloudTrailRecordType = cteventstream.TypeStr
+	defaultEndpoint             = "0.0.0.0:4433"
+	defaultPort                 = 4433
 )
 
 var (
@@ -35,7 +37,8 @@ var (
 		cwmetricstream.TypeStr: true,
 	}
 	availableLogRecordTypes = map[string]bool{
-		cwlogstream.TypeStr: true,
+		cwlogstream.TypeStr:   true,
+		cteventstream.TypeStr: true,
 	}
 	receivers = sharedcomponent.NewSharedComponents()
 )
@@ -81,8 +84,10 @@ func defaultMetricsUnmarshalers(logger *zap.Logger) map[string]unmarshaler.Metri
 // unmarshalers.
 func defaultLogsUnmarshalers(logger *zap.Logger) map[string]unmarshaler.LogsUnmarshaler {
 	cwmlogs := cwlogstream.NewUnmarshaler(logger)
+	ctevents := cteventstream.NewUnmarshaler(logger)
 	return map[string]unmarshaler.LogsUnmarshaler{
-		cwmlogs.Type(): cwmlogs,
+		cwmlogs.Type():  cwmlogs,
+		ctevents.Type(): ctevents,
 	}
 }
 
@@ -103,6 +108,10 @@ func createDefaultConfig() component.Config {
 			{
 				Path:       "/logs",
 				RecordType: defaultLogsRecordType,
+			},
+			{
+				Path:       "/cloudtrail",
+				RecordType: defaultCloudTrailRecordType,
 			},
 		},
 	}

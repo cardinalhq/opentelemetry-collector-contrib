@@ -15,3 +15,5 @@ awsfirehose:
   logs:
     - path: /logs
       record_type: cwlogs
+    - path: /logs
+      record_type: cloudtrail
