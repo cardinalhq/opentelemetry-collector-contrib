@@ -39,9 +39,6 @@ func NewUnmarshaler(logger *zap.Logger) *Unmarshaler {
 func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 	logs := plog.NewLogs()
 	for recordIndex, record := range records {
-		u.logger.Info("----------------------------------------------")
-		u.logger.Info(string(record))
-		u.logger.Info("----------------------------------------------")
 		if len(record) < 2 {
 			u.logger.Error(
 				"Invalid record (too short)",
@@ -61,6 +58,11 @@ func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 				continue
 			}
 		}
+
+		u.logger.Info("----------------------------------------------")
+		u.logger.Info(string(record))
+		u.logger.Info("----------------------------------------------")
+
 		var log cWLog
 		err := json.Unmarshal(record, &log)
 		if err != nil {
