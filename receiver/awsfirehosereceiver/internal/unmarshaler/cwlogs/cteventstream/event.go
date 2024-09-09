@@ -3,22 +3,7 @@
 
 package cteventstream // import "github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler/cwlogstream"
 
-import "time" // The cWLog is the format for the CloudWatch log stream records.
-type cWLog struct {
-	LogStreamName       string       `json:"logStream"`
-	LogGroupName        string       `json:"logGroup"`
-	Owner               string       `json:"owner"`
-	SubscriptionFilters []string     `json:"subscriptionFilters"`
-	MessageType         string       `json:"messageType"`
-	LogEvents           []cWLogEvent `json:"logEvents"`
-}
-
-// The cWLogEvent is the format for the CloudWatch log stream log events.
-type cWLogEvent struct {
-	ID        string `json:"id"`
-	Timestamp int64  `json:"timestamp"`
-	Message   string `json:"message"`
-}
+import "time"
 
 type Event struct {
 	EventVersion    string    `json:"eventVersion"`
