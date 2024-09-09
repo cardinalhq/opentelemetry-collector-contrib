@@ -1,16 +1,14 @@
 package cteventstream
 
 import (
-	"bytes"
-	"compress/gzip"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"strings"
 	"time"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler/cwlogs"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/plog"
 	conventions "go.opentelemetry.io/collector/semconv/v1.6.1"
@@ -48,7 +46,7 @@ func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 		}
 		if record[0] == 0x1f && record[1] == 0x8b {
 			var err error
-			record, err = decompress(record)
+			record, err = cwlogs.Decompress(record)
 			if err != nil {
 				u.logger.Error(
 					"Unable to inflate input",
@@ -59,7 +57,7 @@ func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 			}
 		}
 
-		var log cWLog
+		var log cwlogs.CWLog
 		err := json.Unmarshal(record, &log)
 		if err != nil {
 			u.logger.Error(
@@ -69,7 +67,7 @@ func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 			)
 			continue
 		}
-		if !u.isValid(log) {
+		if !cwlogs.IsValid(log) {
 			u.logger.Error(
 				"Invalid log",
 				zap.Int("record_index", recordIndex),
@@ -130,30 +128,6 @@ func validateEvent(message []byte) (Event, error) {
 	}
 
 	return Event{}, nil
-}
-
-// decompress handles a gzip'd payload.
-func decompress(data []byte) ([]byte, error) {
-	reader, err := gzip.NewReader(bytes.NewReader(data))
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close()
-
-	uncompressedData, err := io.ReadAll(reader)
-	if err != nil {
-		return nil, err
-	}
-
-	return uncompressedData, nil
-}
-
-// isValid validates that the cWLog has been unmarshalled correctly.
-func (u Unmarshaler) isValid(rec cWLog) bool {
-	return rec.LogStreamName != "" &&
-		rec.LogGroupName != "" &&
-		rec.LogEvents != nil &&
-		rec.Owner != ""
 }
 
 // Type of the serialized messages.
