@@ -86,7 +86,7 @@ func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 		for _, r := range log.LogEvents {
 			lr := sl.LogRecords().AppendEmpty()
 			lr.Body().SetStr(r.Message)
-			appendToLogRecord(&lr, r.Message)
+			appendToLogRecord(u.logger, &lr, r.Message)
 
 			lr.SetSeverityNumber(plog.SeverityNumberUnspecified) // TODO try to find this too
 			lr.SetTimestamp(pcommon.NewTimestampFromTime(time.UnixMilli(r.Timestamp)))
@@ -97,22 +97,32 @@ func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 	if logs.ResourceLogs().Len() == 0 {
 		return logs, errInvalidRecords
 	}
-
 	return logs, nil
 }
 
-func appendToLogRecord(lr *plog.LogRecord, message string) {
+func appendToLogRecord(logger *zap.Logger, lr *plog.LogRecord, message string) {
 	event, err := validateEvent([]byte(message))
 	if err != nil {
-		lr.Attributes().PutStr("event.name", "aws.cloudtrail")
+		logger.Error(
+			"Failed to validate event",
+			zap.Error(err),
+		)
 	}
 
-	eventType := fmt.Sprintf("aws.cloudtrail.%s", strings.ToLower(event.EventType))
-	lr.Attributes().PutStr("event.name", eventType)
-	lr.Attributes().PutStr("aws.cloudtrail.event_type", eventType)
+	makeLogEventName(lr, event.EventName)
+	lr.Attributes().PutStr("aws.cloudtrail.event_type", event.EventType)
+	lr.Attributes().PutStr("aws.cloudtrail.event_name", event.EventName)
 	lr.Attributes().PutStr("aws.cloudtrail.event_version", event.EventVersion)
 	lr.Attributes().PutStr("aws.cloudtrail.event_source", event.EventSource)
+}
 
+func makeLogEventName(lr *plog.LogRecord, eventName string) {
+	logEventName := "aws.cloudtrail"
+	if eventName != "" {
+		logEventName = fmt.Sprintf("aws.cloudtrail.%s", strings.ToLower(eventName))
+	}
+
+	lr.Attributes().PutStr("event.name", logEventName)
 }
 
 func validateEvent(message []byte) (Event, error) {
@@ -122,12 +132,12 @@ func validateEvent(message []byte) (Event, error) {
 		return Event{}, err
 	}
 
-	//TODO: perform further validations
-	if event.EventVersion != "" && event.EventType != "" && event.EventSource != "" {
-		return event, nil
+	//TODO: perform further validations and also revisit error
+	if event.EventVersion == "" || event.EventType == "" || event.EventSource == "" || event.EventName == "" {
+		return Event{}, fmt.Errorf("some of the fields are missing in the event data")
 	}
 
-	return Event{}, nil
+	return event, nil
 }
 
 // Type of the serialized messages.
