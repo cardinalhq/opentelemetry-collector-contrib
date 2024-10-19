@@ -7,11 +7,6 @@ awsfirehose:
   metrics:
     - path: /metrics
       record_type: cwmetrics
-      name_prefixes:
-        - attribute_name: alice
-          default: "alice"
-        - attribute_name: bob
-          default: "bob"
   logs:
     - path: /logs
       record_type: cwlogs

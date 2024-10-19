@@ -36,16 +36,6 @@ func TestLoadConfig(t *testing.T) {
 			{
 				Path:       "/metrics",
 				RecordType: "cwmetrics",
-				NamePrefixes: []NamePrefixConfig{
-					{
-						AttributeName: "alice",
-						Default:       "alice",
-					},
-					{
-						AttributeName: "bob",
-						Default:       "bob",
-					},
-				},
 			},
 		},
 		Logs: []LogsConfig{

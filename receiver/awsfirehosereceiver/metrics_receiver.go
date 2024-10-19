@@ -43,9 +43,8 @@ func newMetricsReceiver(
 		return nil, errUnrecognizedRecordType
 	}
 	mc := &metricsConsumer{
-		consumer:     nextConsumer,
-		unmarshaler:  configuredUnmarshaler,
-		namePrefixes: config.NamePrefixes,
+		consumer:    nextConsumer,
+		unmarshaler: configuredUnmarshaler,
 	}
 	return mc, nil
 }
