@@ -43,6 +43,10 @@ func TestLoadConfig(t *testing.T) {
 				Path:       "/logs",
 				RecordType: "cwlogs",
 			},
+			{
+				Path:       "/cloudtrail",
+				RecordType: "ctevents",
+			},
 		},
 		ServerConfig: confighttp.ServerConfig{
 			Endpoint: "0.0.0.0:4433",
