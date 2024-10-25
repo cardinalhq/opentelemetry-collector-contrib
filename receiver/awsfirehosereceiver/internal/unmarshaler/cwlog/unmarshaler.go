@@ -54,7 +54,7 @@ func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 		// Multiple logs in each record separated by newline character
 		for datumIndex, datum := range bytes.Split(record, []byte(recordDelimiter)) {
 			if len(datum) > 0 {
-				var log cWLog
+				var log CWLog
 				err := json.Unmarshal(datum, &log)
 				if err != nil {
 					u.logger.Error(
@@ -65,7 +65,7 @@ func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 					)
 					continue
 				}
-				if !u.isValid(log) {
+				if !IsValid(log) {
 					u.logger.Error(
 						"Invalid log",
 						zap.Int("datum_index", datumIndex),
@@ -96,8 +96,8 @@ func (u Unmarshaler) Unmarshal(records [][]byte) (plog.Logs, error) {
 	return md, nil
 }
 
-// isValid validates that the cWLog has been unmarshalled correctly.
-func (u Unmarshaler) isValid(log cWLog) bool {
+// IsValid validates that the cWLog has been unmarshalled correctly.
+func IsValid(log CWLog) bool {
 	return log.Owner != "" && log.LogGroup != "" && log.LogStream != ""
 }
 

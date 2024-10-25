@@ -41,7 +41,7 @@ func newResourceLogsBuilder(logs plog.Logs, attrs resourceAttributes) *resourceL
 
 // AddLog events to the LogRecordSlice. Resource attributes are captured when creating
 // the resourceLogsBuilder, so we only need to consider the LogEvents themselves.
-func (rlb *resourceLogsBuilder) AddLog(log cWLog) {
+func (rlb *resourceLogsBuilder) AddLog(log CWLog) {
 	for _, event := range log.LogEvents {
 		logLine := rlb.rls.AppendEmpty()
 		logLine.SetTimestamp(pcommon.Timestamp(event.Timestamp))

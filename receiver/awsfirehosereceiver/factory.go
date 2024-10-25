@@ -16,6 +16,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/testutil"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/metadata"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler/cteventstream"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler/cwlog"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/receiver/awsfirehosereceiver/internal/unmarshaler/cwmetricstream"
 )
@@ -30,11 +31,11 @@ var (
 	availableRecordTypes      = map[string]bool{
 		cwmetricstream.TypeStr: true,
 		cwlog.TypeStr:          true,
+		cteventstream.TypeStr:  true,
 	}
 )
 
-// NewFactory creates a receiver factory for awsfirehose. Currently, only
-// available in metrics pipelines.
+// NewFactory creates a receiver factory for awsfirehose.
 func NewFactory() receiver.Factory {
 	return receiver.NewFactory(
 		metadata.Type,
@@ -63,9 +64,11 @@ func defaultMetricsUnmarshalers(logger *zap.Logger) map[string]unmarshaler.Metri
 
 // defaultLogsUnmarshalers creates a map of the available logs unmarshalers.
 func defaultLogsUnmarshalers(logger *zap.Logger) map[string]unmarshaler.LogsUnmarshaler {
-	u := cwlog.NewUnmarshaler(logger)
+	cwlogUnmarshaler := cwlog.NewUnmarshaler(logger)
+	cteventstreamUnmarshaler := cteventstream.NewUnmarshaler(logger)
 	return map[string]unmarshaler.LogsUnmarshaler{
-		u.Type(): u,
+		cwlogUnmarshaler.Type():         cwlogUnmarshaler,
+		cteventstreamUnmarshaler.Type(): cteventstreamUnmarshaler,
 	}
 }
 
