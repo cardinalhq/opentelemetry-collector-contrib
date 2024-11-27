@@ -24,6 +24,9 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 		return pmetric.NewMetrics(), stats, errors.New("empty request")
 	}
 
+	ignoredSamples := 0
+	ignoredHistograms := 0
+
 	metrics := pmetric.NewMetrics()
 
 	for _, ts := range v2r.Timeseries {
@@ -63,30 +66,49 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 			}
 			stats.Samples += len(ts.Samples)
 		case writev2.Metadata_METRIC_TYPE_SUMMARY:
+			// TODO Implement summary
 			if len(ts.Histograms) > 0 {
 				stats.Samples += len(ts.Histograms)
+				ignoredHistograms += len(ts.Histograms)
 			} else {
 				stats.Samples += len(ts.Samples)
+				ignoredSamples += len(ts.Samples)
 			}
 		case writev2.Metadata_METRIC_TYPE_HISTOGRAM:
+			// TODO Implement histogram
 			if len(ts.Histograms) > 0 {
 				stats.Samples += len(ts.Histograms)
+				ignoredHistograms += len(ts.Histograms)
 			} else {
 				stats.Samples += len(ts.Samples)
+				ignoredSamples += len(ts.Samples)
 			}
 		case writev2.Metadata_METRIC_TYPE_GAUGEHISTOGRAM:
+			// TODO Implement gaugehistogram
 			if len(ts.Histograms) > 0 {
 				stats.Samples += len(ts.Histograms)
+				ignoredHistograms += len(ts.Histograms)
 			} else {
 				stats.Samples += len(ts.Samples)
+				ignoredSamples += len(ts.Samples)
 			}
 		case writev2.Metadata_METRIC_TYPE_UNSPECIFIED:
 			// ignore
+			if len(ts.Histograms) > 0 {
+				ignoredHistograms += len(ts.Histograms)
+			} else {
+				ignoredSamples += len(ts.Samples)
+			}
 		default:
 			prw.settings.Logger.Warn("Unknown metric type", zap.Any("type", ts.Metadata.Type))
 		}
 		stats.Exemplars += len(ts.Exemplars)
 	}
+
+	if ignoredSamples > 0 || ignoredHistograms > 0 {
+		prw.settings.Logger.Warn("Ignoring samples", zap.Int("samples", ignoredSamples), zap.Int("histograms", ignoredHistograms))
+	}
+
 	return metrics, stats, nil
 }
 
