@@ -116,7 +116,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 	}
 
 	if ignoredSamples > 0 || ignoredHistograms > 0 {
-		prw.settings.Logger.Warn("Ignoring samples", zap.Int("samples", ignoredSamples), zap.Int("histograms", ignoredHistograms))
+		prw.settings.Logger.Debug("Ignoring samples", zap.Int("samples", ignoredSamples), zap.Int("histograms", ignoredHistograms))
 	}
 
 	return metrics, stats, nil
