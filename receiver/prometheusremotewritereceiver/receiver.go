@@ -87,6 +87,14 @@ func (prw *prometheusRemoteWriteReceiver) handlePRW(w http.ResponseWriter, req *
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
 		return
 	}
+	if msgType == promconfig.RemoteWriteProtoMsgV1 {
+		prw.settings.Logger.Warn("possible v1 proto received, sending back 204")
+		stats := promremote.WriteResponseStats{}
+		stats.SetHeaders(w)
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
+
 	if msgType != promconfig.RemoteWriteProtoMsgV2 {
 		prw.settings.Logger.Warn("message received with unsupported proto version, rejecting", zap.String("contentType", contentType))
 		http.Error(w, "Unsupported proto version", http.StatusUnsupportedMediaType)
