@@ -61,7 +61,7 @@ func (prw *prometheusRemoteWriteReceiver) Start(ctx context.Context, host compon
 	prw.server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Content-Encoding") == "snappy" {
 			r.Body = newSnappyReader(r.Body)
-			r.Header.Set("Content-Encoding", "identity")
+			r.Header.Del("Content-Encoding")
 		}
 		handler1.ServeHTTP(w, r)
 	})
