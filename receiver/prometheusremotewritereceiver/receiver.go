@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/proto"
+	"github.com/golang/snappy"
 	promconfig "github.com/prometheus/prometheus/config"
 	writev1 "github.com/prometheus/prometheus/prompb"
 	writev2 "github.com/prometheus/prometheus/prompb/io/prometheus/write/v2"
@@ -60,17 +61,9 @@ func (prw *prometheusRemoteWriteReceiver) Start(ctx context.Context, host compon
 	handler1 := prw.server.Handler
 	prw.server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Content-Encoding") == "snappy" {
-			r.Body = newSnappyReader(r.Body)
 			r.Header.Del("Content-Encoding")
 		}
 		handler1.ServeHTTP(w, r)
-	})
-
-	// wrap a new max size limiter around the handler
-	handler2 := prw.server.Handler
-	prw.server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		r.Body = http.MaxBytesReader(w, r.Body, prw.config.MaxRequestBodySize)
-		handler2.ServeHTTP(w, r)
 	})
 
 	listener, err := prw.config.ToListener(ctx)
@@ -135,9 +128,10 @@ func (prw *prometheusRemoteWriteReceiver) handlePRWV1(w http.ResponseWriter, req
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	decoded, err := snappy.Decode(nil, body)
 
 	var prw1Req writev1.WriteRequest
-	if err = proto.Unmarshal(body, &prw1Req); err != nil {
+	if err = proto.Unmarshal(decoded, &prw1Req); err != nil {
 		prw.settings.Logger.Warn("Error decoding remote write request", zapcore.Field{Key: "error", Type: zapcore.ErrorType, Interface: err})
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -164,9 +158,10 @@ func (prw *prometheusRemoteWriteReceiver) handlePRWV2(w http.ResponseWriter, req
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	decoded, err := snappy.Decode(nil, body)
 
 	var prw2Req writev2.Request
-	if err = proto.Unmarshal(body, &prw2Req); err != nil {
+	if err = proto.Unmarshal(decoded, &prw2Req); err != nil {
 		prw.settings.Logger.Warn("Error decoding remote write request", zapcore.Field{Key: "error", Type: zapcore.ErrorType, Interface: err})
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
