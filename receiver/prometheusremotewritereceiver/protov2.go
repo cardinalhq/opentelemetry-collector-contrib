@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	merger "github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics"
 	writev2 "github.com/prometheus/prometheus/prompb/io/prometheus/write/v2"
 	promremote "github.com/prometheus/prometheus/storage/remote"
 	"go.opentelemetry.io/collector/pdata/pcommon"
@@ -40,7 +41,8 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 		name = strings.ReplaceAll(name, "_", ".")
 		delete(labels, "..name..")
 
-		rm := metrics.ResourceMetrics().AppendEmpty()
+		newMetrics := pmetric.NewMetrics()
+		rm := newMetrics.ResourceMetrics().AppendEmpty()
 		sm := rm.ScopeMetrics().AppendEmpty()
 		m := sm.Metrics().AppendEmpty()
 		m.SetName(name)
@@ -107,6 +109,9 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 			prw.settings.Logger.Warn("Unknown metric type", zap.Any("type", ts.Metadata.Type))
 		}
 		stats.Exemplars += len(ts.Exemplars)
+
+		// Merge the new metrics into the existing metrics
+		metrics = merger.Merge(metrics, newMetrics)
 	}
 
 	if ignoredSamples > 0 || ignoredHistograms > 0 {

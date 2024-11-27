@@ -328,6 +328,14 @@ github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f h1:KUppIJq7/+
 github.com/mwitkow/go-conntrack v0.0.0-20190716064945-2f068394615f/go.mod h1:qRWi+5nqEBWmkhHvq77mSJWrCKwh8bxhgT7d/eI7P4U=
 github.com/oklog/ulid v1.3.1 h1:EGfNDEx6MqHz8B3uNV6QAib1UR2Lm97sHi3ocA6ESJ4=
 github.com/oklog/ulid v1.3.1/go.mod h1:CirwcVhetQ6Lv90oh/F+FBtV6XMibvdAFo93nm5qn4U=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.114.0 h1:5WCUkPKZXf0MGTPlpB6iyE5bHsqnyRzZejNuYtczv7w=
+github.com/open-telemetry/opentelemetry-collector-contrib/internal/exp/metrics v0.114.0/go.mod h1:h0wW27GeLc4D+9eWhvZMzhC3E/86EF8BPZzU7fiJrNQ=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.114.0 h1:SXi6JSSs2cWROnC1U2v3XysG3t58ilGUwoLqxpGuwFU=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.114.0/go.mod h1:LSd6sus2Jvpg3M3vM4HgmVh3/dmMtcJmTqELrFOQFRg=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.114.0 h1:m8uPYU2rTj0sKiYgzCvIPajD3meiYsu+nX0hplUnlEU=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatatest v0.114.0/go.mod h1:P0BaP92pXPkTyTmObfLYUoRBfMYU+i0hdS3oM1DpGJo=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.114.0 h1:Qg80zPfNMlub7LO07VMDElOu3M2oxqdZgvvB+X72a4U=
+github.com/open-telemetry/opentelemetry-collector-contrib/pkg/pdatautil v0.114.0/go.mod h1:5qsGcjFV3WFI6J2onAlkR7Xd/8VtwJcECaDRZfW4Tb4=
 github.com/opencontainers/go-digest v1.0.0 h1:apOUWs51W5PlhuyGyz9FCeeBIOUDA/6nW8Oi/yOhh5U=
 github.com/opencontainers/go-digest v1.0.0/go.mod h1:0JzlMkj0TRzQZfJkVvzbP0HBR3IKzErnv2BNG4W4MAM=
 github.com/opencontainers/image-spec v1.0.2 h1:9yCKha/T5XdGtO0q9Q9a6T5NUCsTn/DrBg0D7ufOcFM=
