@@ -110,11 +110,15 @@ func (prw *prometheusRemoteWriteReceiver) handlePRW(w http.ResponseWriter, req *
 		return
 	}
 
-	_, stats, err := prw.translateV2(req.Context(), &prw2Req)
+	m, stats, err := prw.translateV2(req.Context(), &prw2Req)
 	stats.SetHeaders(w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest) // Following instructions at https://prometheus.io/docs/specs/remote_write_spec_2_0/#invalid-samples
 		return
+	}
+
+	if m.DataPointCount() > 0 {
+		prw.nextConsumer.ConsumeMetrics(req.Context(), m)
 	}
 
 	w.WriteHeader(http.StatusNoContent)
@@ -210,7 +214,7 @@ func safeSymbol(symbols []string, index uint32) string {
 }
 
 func derefLabels(labelsRefs []uint32, symbols []string) map[string]string {
-	labels := make(map[string]string)
+	labels := map[string]string{}
 
 	// Ensure labelsRefs has an even number of entries
 	if len(labelsRefs)%2 != 0 {
@@ -221,7 +225,6 @@ func derefLabels(labelsRefs []uint32, symbols []string) map[string]string {
 		key := safeSymbol(symbols, labelsRefs[i])
 		value := safeSymbol(symbols, labelsRefs[i+1])
 
-		// Skip if key or value is empty
 		if key == "" || value == "" {
 			continue
 		}
