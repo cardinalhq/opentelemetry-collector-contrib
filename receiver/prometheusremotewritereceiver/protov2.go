@@ -14,6 +14,7 @@ import (
 	promremote "github.com/prometheus/prometheus/storage/remote"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	semconv "go.opentelemetry.io/collector/semconv/v1.27.0"
 	"go.uber.org/zap"
 )
 
@@ -66,7 +67,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 				dp := sum.DataPoints().AppendEmpty()
 				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.UnixMilli(sample.Timestamp)))
 				dp.SetDoubleValue(sample.Value)
-				setAttributes(dp.Attributes(), labels)
+				setAttributes(labels, rm.Resource().Attributes(), sm.Scope().Attributes(), dp.Attributes())
 			}
 			stats.Samples += len(ts.Samples)
 		case writev2.Metadata_METRIC_TYPE_GAUGE:
@@ -75,7 +76,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 				dp := gauge.DataPoints().AppendEmpty()
 				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.UnixMilli(sample.Timestamp)))
 				dp.SetDoubleValue(sample.Value)
-				setAttributes(dp.Attributes(), labels)
+				setAttributes(labels, rm.Resource().Attributes(), sm.Scope().Attributes(), dp.Attributes())
 			}
 			stats.Samples += len(ts.Samples)
 		case writev2.Metadata_METRIC_TYPE_SUMMARY:
@@ -121,9 +122,16 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 	return metrics, stats, nil
 }
 
-func setAttributes(attrs pcommon.Map, labels map[string]string) {
+func setAttributes(labels map[string]string, rattrs pcommon.Map, _ pcommon.Map, iattr pcommon.Map) {
 	for k, v := range labels {
-		attrs.PutStr(k, v)
+		switch k {
+		case "service":
+			rattrs.PutStr(semconv.AttributeServiceName, v)
+		case "namespace":
+			rattrs.PutStr(semconv.AttributeServiceNamespace, v)
+		default:
+			iattr.PutStr(k, v)
+		}
 	}
 }
 
@@ -135,7 +143,7 @@ func safeSymbol(symbols []string, index uint32) string {
 }
 
 func derefLabels(labelsRefs []uint32, symbols []string) map[string]string {
-	labels := map[string]string{}
+	labels := make(map[string]string)
 
 	// Ensure labelsRefs has an even number of entries
 	if len(labelsRefs)%2 != 0 {
@@ -145,11 +153,9 @@ func derefLabels(labelsRefs []uint32, symbols []string) map[string]string {
 	for i := 0; i < len(labelsRefs); i += 2 {
 		key := strings.ReplaceAll(safeSymbol(symbols, labelsRefs[i]), "_", ".")
 		value := safeSymbol(symbols, labelsRefs[i+1])
-
 		if key == "" || value == "" {
 			continue
 		}
-
 		labels[key] = value
 	}
 	return labels
