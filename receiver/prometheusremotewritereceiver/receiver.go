@@ -81,7 +81,14 @@ func (prw *prometheusRemoteWriteReceiver) handlePRW(w http.ResponseWriter, req *
 		return
 	}
 
-	msgType, err := prw.parseProto(contentType)
+	protoVersion := req.Header.Get("X-Prometheus-Remote-Write-Version")
+	if protoVersion == "" {
+		prw.settings.Logger.Warn("message received without X-Prometheus-Remote-Write-Version header, rejecting")
+		http.Error(w, "X-Prometheus-Remote-Write-Version header is required", http.StatusUnsupportedMediaType)
+		return
+	}
+
+	msgType, err := prw.parseProto(contentType, protoVersion)
 	if err != nil {
 		prw.settings.Logger.Warn("Error decoding remote-write request", zapcore.Field{Key: "error", Type: zapcore.ErrorType, Interface: err})
 		http.Error(w, err.Error(), http.StatusUnsupportedMediaType)
@@ -135,7 +142,7 @@ func (prw *prometheusRemoteWriteReceiver) handlePRW(w http.ResponseWriter, req *
 // parseProto parses the content-type header and returns the version of the remote-write protocol.
 // We can't expect that senders of remote-write v1 will add the "proto=" parameter since it was not
 // a requirement in v1. So, if the parameter is not found, we assume v1.
-func (prw *prometheusRemoteWriteReceiver) parseProto(contentType string) (promconfig.RemoteWriteProtoMsg, error) {
+func (prw *prometheusRemoteWriteReceiver) parseProto(contentType string, protoVersion string) (promconfig.RemoteWriteProtoMsg, error) {
 	contentType = strings.TrimSpace(contentType)
 
 	parts := strings.Split(contentType, ";")
@@ -143,22 +150,11 @@ func (prw *prometheusRemoteWriteReceiver) parseProto(contentType string) (promco
 		return "", fmt.Errorf("expected %q as the first (media) part, got %v content-type", "application/x-protobuf", contentType)
 	}
 
-	for _, part := range parts[1:] {
-		parameter := strings.Split(part, "=")
-		if len(parameter) != 2 {
-			return "", fmt.Errorf("as per https://www.rfc-editor.org/rfc/rfc9110#parameter expected parameters to be key-values, got %v in %v content-type", part, contentType)
-		}
-
-		if strings.TrimSpace(parameter[0]) == "proto" {
-			ret := promconfig.RemoteWriteProtoMsg(parameter[1])
-			if err := ret.Validate(); err != nil {
-				return "", fmt.Errorf("got %v content type; %w", contentType, err)
-			}
-			return ret, nil
-		}
+	if strings.HasPrefix(protoVersion, "2.") {
+		return promconfig.RemoteWriteProtoMsgV2, nil
 	}
 
-	// No "proto=" parameter found, assume v1.
+	// assume v1.
 	return promconfig.RemoteWriteProtoMsgV1, nil
 }
 
