@@ -164,7 +164,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 	}
 
 	for _, ts := range v2r.Timeseries {
-		labels := make(map[string]string, len(ts.LabelsRefs)/2)
+		labels := derefLabels(ts.LabelsRefs, v2r.Symbols)
 		prw.settings.Logger.Info("Timeseries",
 			zap.Any("labels", labels),
 			zap.Any("samples", ts.Samples),
@@ -202,14 +202,14 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 	return pmetric.NewMetrics(), stats, nil
 }
 
-func safeSymbol(symbols []string, index uint64) string {
+func safeSymbol(symbols []string, index uint32) string {
 	if int(index) < len(symbols) {
 		return symbols[index]
 	}
 	return ""
 }
 
-func derefLabels(labelsRefs []uint64, symbols []string) map[string]string {
+func derefLabels(labelsRefs []uint32, symbols []string) map[string]string {
 	labels := make(map[string]string)
 
 	// Ensure labelsRefs has an even number of entries
