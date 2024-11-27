@@ -24,11 +24,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 		return pmetric.NewMetrics(), stats, errors.New("empty request")
 	}
 
-	for idx, sym := range v2r.Symbols {
-		prw.settings.Logger.Info("Symbol", zap.Int("index", idx), zap.String("symbol", sym))
-	}
-
-	m := pmetric.NewMetrics()
+	metrics := pmetric.NewMetrics()
 
 	for _, ts := range v2r.Timeseries {
 		labels := derefLabels(ts.LabelsRefs, v2r.Symbols)
@@ -41,7 +37,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 
 		switch ts.Metadata.Type {
 		case writev2.Metadata_METRIC_TYPE_COUNTER:
-			rm := m.ResourceMetrics().AppendEmpty()
+			rm := metrics.ResourceMetrics().AppendEmpty()
 			sm := rm.ScopeMetrics().AppendEmpty()
 			m := sm.Metrics().AppendEmpty()
 			sum := m.SetEmptySum()
@@ -55,7 +51,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 			}
 			stats.Samples += len(ts.Samples)
 		case writev2.Metadata_METRIC_TYPE_GAUGE:
-			rm := m.ResourceMetrics().AppendEmpty()
+			rm := metrics.ResourceMetrics().AppendEmpty()
 			sm := rm.ScopeMetrics().AppendEmpty()
 			m := sm.Metrics().AppendEmpty()
 			g := m.SetEmptyGauge()
@@ -91,7 +87,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 		}
 		stats.Exemplars += len(ts.Exemplars)
 	}
-	return m, stats, nil
+	return metrics, stats, nil
 }
 
 func safeSymbol(symbols []string, index uint32) string {
