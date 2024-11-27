@@ -6,6 +6,7 @@ package prometheusremotewritereceiver // import "github.com/open-telemetry/opent
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	writev2 "github.com/prometheus/prometheus/prompb/io/prometheus/write/v2"
@@ -36,10 +37,20 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 			prw.settings.Logger.Warn("Missing metric name")
 			continue
 		}
+		name = strings.ReplaceAll(name, "_", ".")
 		delete(labels, "__name__")
+
 		rm := metrics.ResourceMetrics().AppendEmpty()
 		sm := rm.ScopeMetrics().AppendEmpty()
 		m := sm.Metrics().AppendEmpty()
+		units := safeSymbol(v2r.Symbols, ts.Metadata.UnitRef)
+		if units != "" {
+			m.SetUnit(units)
+		}
+		help := safeSymbol(v2r.Symbols, ts.Metadata.HelpRef)
+		if help != "" {
+			m.SetDescription(help)
+		}
 
 		switch ts.Metadata.Type {
 		case writev2.Metadata_METRIC_TYPE_COUNTER, writev2.Metadata_METRIC_TYPE_UNSPECIFIED:
@@ -118,7 +129,7 @@ func derefLabels(labelsRefs []uint32, symbols []string) map[string]string {
 	}
 
 	for i := 0; i < len(labelsRefs); i += 2 {
-		key := safeSymbol(symbols, labelsRefs[i])
+		key := strings.ReplaceAll(safeSymbol(symbols, labelsRefs[i]), "_", ".")
 		value := safeSymbol(symbols, labelsRefs[i+1])
 
 		if key == "" || value == "" {
