@@ -52,6 +52,27 @@ func (prw *prometheusRemoteWriteReceiver) Start(ctx context.Context, host compon
 	if err != nil {
 		return fmt.Errorf("failed to create server definition: %w", err)
 	}
+
+	// HACK!  The prometheus remote-write protocol specifies Snappy compression,
+	// but the otel collector assumes framed snappy.  We need to add a handler here
+	// that will decompress the snappy data, and then pass it on to the normal handler
+	// with headers updated to reflect the decompression.
+	handler1 := prw.server.Handler
+	prw.server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Content-Encoding") == "snappy" {
+			r.Body = newSnappyReader(r.Body)
+			r.Header.Set("Content-Encoding", "identity")
+		}
+		handler1.ServeHTTP(w, r)
+	})
+
+	// wrap a new max size limiter around the handler
+	handler2 := prw.server.Handler
+	prw.server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, prw.config.MaxRequestBodySize)
+		handler2.ServeHTTP(w, r)
+	})
+
 	listener, err := prw.config.ToListener(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to create prometheus remote-write listener: %w", err)
