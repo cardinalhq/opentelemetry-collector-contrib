@@ -37,12 +37,12 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 			continue
 		}
 		delete(labels, "__name__")
+		rm := metrics.ResourceMetrics().AppendEmpty()
+		sm := rm.ScopeMetrics().AppendEmpty()
+		m := sm.Metrics().AppendEmpty()
 
 		switch ts.Metadata.Type {
-		case writev2.Metadata_METRIC_TYPE_COUNTER:
-			rm := metrics.ResourceMetrics().AppendEmpty()
-			sm := rm.ScopeMetrics().AppendEmpty()
-			m := sm.Metrics().AppendEmpty()
+		case writev2.Metadata_METRIC_TYPE_COUNTER, writev2.Metadata_METRIC_TYPE_UNSPECIFIED:
 			sum := m.SetEmptySum()
 			sum.SetIsMonotonic(true)
 			sum.SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
@@ -54,13 +54,10 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 			}
 			stats.Samples += len(ts.Samples)
 		case writev2.Metadata_METRIC_TYPE_GAUGE:
-			rm := metrics.ResourceMetrics().AppendEmpty()
-			sm := rm.ScopeMetrics().AppendEmpty()
-			m := sm.Metrics().AppendEmpty()
-			g := m.SetEmptyGauge()
+			gauge := m.SetEmptyGauge()
 			m.SetName(name)
 			for _, sample := range ts.Samples {
-				dp := g.DataPoints().AppendEmpty()
+				dp := gauge.DataPoints().AppendEmpty()
 				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.UnixMilli(sample.Timestamp)))
 				dp.SetDoubleValue(sample.Value)
 			}
@@ -90,13 +87,6 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 				ignoredHistograms += len(ts.Histograms)
 			} else {
 				stats.Samples += len(ts.Samples)
-				ignoredSamples += len(ts.Samples)
-			}
-		case writev2.Metadata_METRIC_TYPE_UNSPECIFIED:
-			// ignore
-			if len(ts.Histograms) > 0 {
-				ignoredHistograms += len(ts.Histograms)
-			} else {
 				ignoredSamples += len(ts.Samples)
 			}
 		default:
