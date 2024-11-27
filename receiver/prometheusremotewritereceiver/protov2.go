@@ -32,13 +32,13 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 
 	for _, ts := range v2r.Timeseries {
 		labels := derefLabels(ts.LabelsRefs, v2r.Symbols)
-		name := labels["__name__"]
+		name := labels["..name.."]
 		if name == "" {
 			prw.settings.Logger.Warn("Missing metric name")
 			continue
 		}
 		name = strings.ReplaceAll(name, "_", ".")
-		delete(labels, "__name__")
+		delete(labels, "..name..")
 
 		rm := metrics.ResourceMetrics().AppendEmpty()
 		sm := rm.ScopeMetrics().AppendEmpty()
