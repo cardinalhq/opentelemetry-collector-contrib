@@ -43,10 +43,13 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 		rm := metrics.ResourceMetrics().AppendEmpty()
 		sm := rm.ScopeMetrics().AppendEmpty()
 		m := sm.Metrics().AppendEmpty()
+		m.SetName(name)
+
 		units := safeSymbol(v2r.Symbols, ts.Metadata.UnitRef)
 		if units != "" {
 			m.SetUnit(units)
 		}
+
 		help := safeSymbol(v2r.Symbols, ts.Metadata.HelpRef)
 		if help != "" {
 			m.SetDescription(help)
@@ -57,7 +60,6 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 			sum := m.SetEmptySum()
 			sum.SetIsMonotonic(true)
 			sum.SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
-			m.SetName(name)
 			for _, sample := range ts.Samples {
 				dp := sum.DataPoints().AppendEmpty()
 				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.UnixMilli(sample.Timestamp)))
@@ -67,7 +69,6 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 			stats.Samples += len(ts.Samples)
 		case writev2.Metadata_METRIC_TYPE_GAUGE:
 			gauge := m.SetEmptyGauge()
-			m.SetName(name)
 			for _, sample := range ts.Samples {
 				dp := gauge.DataPoints().AppendEmpty()
 				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.UnixMilli(sample.Timestamp)))
