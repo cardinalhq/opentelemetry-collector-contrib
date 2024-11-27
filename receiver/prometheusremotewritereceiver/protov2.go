@@ -62,6 +62,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 				dp := sum.DataPoints().AppendEmpty()
 				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.UnixMilli(sample.Timestamp)))
 				dp.SetDoubleValue(sample.Value)
+				setAttributes(dp.Attributes(), labels)
 			}
 			stats.Samples += len(ts.Samples)
 		case writev2.Metadata_METRIC_TYPE_GAUGE:
@@ -71,6 +72,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 				dp := gauge.DataPoints().AppendEmpty()
 				dp.SetTimestamp(pcommon.NewTimestampFromTime(time.UnixMilli(sample.Timestamp)))
 				dp.SetDoubleValue(sample.Value)
+				setAttributes(dp.Attributes(), labels)
 			}
 			stats.Samples += len(ts.Samples)
 		case writev2.Metadata_METRIC_TYPE_SUMMARY:
@@ -111,6 +113,12 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 	}
 
 	return metrics, stats, nil
+}
+
+func setAttributes(attrs pcommon.Map, labels map[string]string) {
+	for k, v := range labels {
+		attrs.PutStr(k, v)
+	}
 }
 
 func safeSymbol(symbols []string, index uint32) string {
