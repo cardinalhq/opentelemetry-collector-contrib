@@ -129,6 +129,10 @@ func setAttributes(labels map[string]string, rattrs pcommon.Map, _ pcommon.Map, 
 			rattrs.PutStr(semconv.AttributeServiceName, v)
 		case "namespace":
 			rattrs.PutStr(semconv.AttributeServiceNamespace, v)
+		case "pod":
+			rattrs.PutStr(semconv.AttributeK8SPodName, v)
+		case "node":
+			rattrs.PutStr(semconv.AttributeK8SNodeName, v)
 		default:
 			iattr.PutStr(k, v)
 		}
