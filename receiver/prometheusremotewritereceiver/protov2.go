@@ -7,7 +7,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -40,8 +40,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 	ignoredHistograms := 0
 
 	metrics := pmetric.NewMetrics()
-	resourceMetricCache := make(map[string]pmetric.ResourceMetrics)
-	scopeMetricCache := make(map[string]pmetric.ScopeMetrics)
+	resourceMetricCache := make(map[string]int)
 
 	for _, ts := range v2r.Timeseries {
 		labels := derefLabels(ts.LabelsRefs, v2r.Symbols)
@@ -53,7 +52,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 		name = strings.ReplaceAll(name, "_", ".")
 		delete(labels, "..name..")
 
-		m := getMetric(labels, metrics, resourceMetricCache, scopeMetricCache)
+		m := getMetric(labels, metrics, resourceMetricCache)
 		m.SetName(name)
 
 		units := safeSymbol(v2r.Symbols, ts.Metadata.UnitRef)
@@ -168,41 +167,27 @@ func derefLabels(labelsRefs []uint32, symbols []string) map[string]string {
 func getMetric(
 	labels map[string]string,
 	metrics pmetric.Metrics,
-	resourceMetricCache map[string]pmetric.ResourceMetrics,
-	scopeMetricCache map[string]pmetric.ScopeMetrics,
+	resourceMetricCache map[string]int,
 ) pmetric.Metric {
-
 	var parts []string
-	resourceAttributes := make(map[string]string)
+	resourceAttributes := pcommon.NewMap()
 	for promName, semanticName := range resourceAttributeNameMap {
 		if value, ok := labels[promName]; ok {
-			resourceAttributes[semanticName] = value
+			resourceAttributes.PutStr(semanticName, value)
 			parts = append(parts, fmt.Sprintf("%s=%s", semanticName, value))
 		}
 	}
-	sort.Strings(parts)
+	slices.Sort(parts)
 	resourceID := strings.Join(parts, ":")
 
-	var rm pmetric.ResourceMetrics
-	if cachedRM, ok := resourceMetricCache[resourceID]; ok {
-		rm = cachedRM
-	} else {
-		rm = metrics.ResourceMetrics().AppendEmpty()
-		for k, v := range resourceAttributes {
-			rm.Resource().Attributes().PutStr(k, v)
-		}
-		resourceMetricCache[resourceID] = rm
+	idx, ok := resourceMetricCache[resourceID]
+	if !ok {
+		idx = metrics.ResourceMetrics().Len()
+		rm := metrics.ResourceMetrics().AppendEmpty()
+		resourceAttributes.CopyTo(rm.Resource().Attributes())
+		rm.ScopeMetrics().AppendEmpty()
+		resourceMetricCache[resourceID] = idx
 	}
 
-	// We index ScopeMetrics with the resourceID itself because there are no discernible scope attributes
-	// that we know of coming on the prometheus remote write request.
-	var sm pmetric.ScopeMetrics
-	if cachedSM, ok := scopeMetricCache[resourceID]; ok {
-		sm = cachedSM
-	} else {
-		sm = rm.ScopeMetrics().AppendEmpty()
-		scopeMetricCache[resourceID] = sm
-	}
-
-	return sm.Metrics().AppendEmpty()
+	return metrics.ResourceMetrics().At(idx).ScopeMetrics().At(0).Metrics().AppendEmpty()
 }
