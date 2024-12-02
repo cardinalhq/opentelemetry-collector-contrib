@@ -45,6 +45,11 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 	for _, ts := range v2r.Timeseries {
 		labels := derefLabels(ts.LabelsRefs, v2r.Symbols)
 		name := labels["..name.."]
+
+		if strings.HasSuffix(name, "total") || strings.HasSuffix(name, "count") {
+			prw.settings.Logger.Info("Received metric", zap.String("name", name), zap.Any("type", ts.Metadata.Type))
+		}
+
 		if name == "" {
 			prw.settings.Logger.Warn("Missing metric name")
 			continue
