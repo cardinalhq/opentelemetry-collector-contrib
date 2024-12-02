@@ -46,10 +46,6 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 		labels := derefLabels(ts.LabelsRefs, v2r.Symbols)
 		name := labels["..name.."]
 
-		if strings.HasSuffix(name, "total") || strings.HasSuffix(name, "count") {
-			prw.settings.Logger.Info("Received metric", zap.String("name", name), zap.Any("type", ts.Metadata.Type))
-		}
-
 		if name == "" {
 			prw.settings.Logger.Warn("Missing metric name")
 			continue
@@ -84,6 +80,7 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 				setAttributes(labels, dp.Attributes())
 			}
 			stats.Samples += len(ts.Samples)
+			prw.settings.Logger.Info("Created sum metric", zap.String("name", name), zap.Any("type", ts.Metadata.Type), zap.Bool("monotonic", sum.IsMonotonic()), zap.Any("temporality", sum.AggregationTemporality()))
 		case writev2.Metadata_METRIC_TYPE_GAUGE:
 			gauge := m.SetEmptyGauge()
 			for _, sample := range ts.Samples {
