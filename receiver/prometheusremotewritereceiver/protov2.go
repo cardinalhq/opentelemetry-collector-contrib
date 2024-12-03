@@ -73,8 +73,9 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 			sum.SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
 			for _, sample := range ts.Samples {
 				dp := sum.DataPoints().AppendEmpty()
+				startTs := pcommon.NewTimestampFromTime(time.UnixMilli(ts.CreatedTimestamp))
 				milli := pcommon.NewTimestampFromTime(time.UnixMilli(sample.Timestamp))
-				dp.SetStartTimestamp(milli)
+				dp.SetStartTimestamp(startTs)
 				dp.SetTimestamp(milli)
 				dp.SetDoubleValue(sample.Value)
 				setAttributes(labels, dp.Attributes())
