@@ -80,7 +80,9 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 				setAttributes(labels, dp.Attributes())
 			}
 			stats.Samples += len(ts.Samples)
-			prw.settings.Logger.Info("Created sum metric", zap.String("name", name), zap.Any("type", ts.Metadata.Type), zap.Bool("monotonic", sum.IsMonotonic()), zap.Any("temporality", sum.AggregationTemporality()))
+			if strings.Contains(name, "rss") {
+				prw.settings.Logger.Info("Created sum metric", zap.String("name", name), zap.Any("type", ts.Metadata.Type), zap.Bool("monotonic", sum.IsMonotonic()), zap.Any("temporality", sum.AggregationTemporality()))
+			}
 		case writev2.Metadata_METRIC_TYPE_GAUGE:
 			gauge := m.SetEmptyGauge()
 			for _, sample := range ts.Samples {
@@ -92,6 +94,9 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 				setAttributes(labels, dp.Attributes())
 			}
 			stats.Samples += len(ts.Samples)
+			if strings.Contains(name, "rss") {
+				prw.settings.Logger.Info("Created gauge metric", zap.String("name", name), zap.Any("type", ts.Metadata.Type))
+			}
 		case writev2.Metadata_METRIC_TYPE_SUMMARY:
 			// TODO Implement summary
 			if len(ts.Histograms) > 0 {
