@@ -20,11 +20,17 @@ import (
 )
 
 var resourceAttributeNameMap = map[string]string{
-	"service":   semconv.AttributeServiceName,
-	"job":       semconv.AttributeServiceName,
-	"namespace": semconv.AttributeServiceNamespace,
-	"pod":       semconv.AttributeK8SPodName,
-	"node":      semconv.AttributeK8SNodeName,
+	"service":              semconv.AttributeServiceName,
+	"job":                  semconv.AttributeServiceName,
+	"service.name":         semconv.AttributeServiceName,
+	"namespace":            semconv.AttributeServiceNamespace,
+	"pod":                  semconv.AttributeK8SPodName,
+	"node":                 semconv.AttributeK8SNodeName,
+	"kube.node":            semconv.AttributeK8SNodeName,
+	"host.name":            semconv.AttributeHostName,
+	"container.id":         semconv.AttributeContainerID,
+	"container.image.name": semconv.AttributeContainerImageName,
+	"container.image.tag":  semconv.AttributeContainerImageTags, // should render as a list...
 }
 
 // translateV2 translates a v2 remote-write request into OTLP metrics.
@@ -44,14 +50,12 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 
 	for _, ts := range v2r.Timeseries {
 		labels := derefLabels(ts.LabelsRefs, v2r.Symbols)
-		name := labels["..name.."]
 
+		name := getName(labels)
 		if name == "" {
 			prw.settings.Logger.Warn("Missing metric name")
 			continue
 		}
-		name = strings.ReplaceAll(name, "_", ".")
-		delete(labels, "..name..")
 
 		m := getMetric(labels, metrics, resourceMetricCache)
 		m.SetName(name)
@@ -130,6 +134,19 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, v2r *wr
 	}
 
 	return metrics, stats, nil
+}
+
+func getName(labels map[string]string) string {
+	name := labels["..name.."]
+	delete(labels, "..name..")
+	if name == "" {
+		return ""
+	}
+	serviceName := labels["service.name"]
+	if serviceName != "" {
+		name = strings.TrimPrefix(name, serviceName+"_")
+	}
+	return strings.ReplaceAll(name, "_", ".")
 }
 
 func setAttributes(labels map[string]string, iattr pcommon.Map) {

@@ -20,9 +20,7 @@ import (
 	"go.opentelemetry.io/collector/receiver/receivertest"
 )
 
-func setupServer(t *testing.T) {
-	t.Helper()
-
+func TestHandlePRWContentTypeNegotiation(t *testing.T) {
 	factory := NewFactory()
 	cfg := factory.CreateDefaultConfig()
 
@@ -31,45 +29,44 @@ func setupServer(t *testing.T) {
 	assert.NotNil(t, prwReceiver, "metrics receiver creation failed")
 
 	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
+	defer cancel()
 
 	assert.NoError(t, prwReceiver.Start(ctx, componenttest.NewNopHost()))
-	t.Cleanup(func() {
-		assert.NoError(t, prwReceiver.Shutdown(ctx), "Must not error shutting down")
-	})
-}
-
-func TestHandlePRWContentTypeNegotiation(t *testing.T) {
-	setupServer(t)
 
 	for _, tc := range []struct {
 		name         string
 		contentType  string
+		version      promconfig.RemoteWriteProtoMsg
 		extectedCode int
 	}{
 		{
 			name:         "no content type",
 			contentType:  "",
+			version:      promconfig.RemoteWriteProtoMsgV2,
 			extectedCode: http.StatusUnsupportedMediaType,
 		},
 		{
 			name:         "unsupported content type",
 			contentType:  "application/json",
+			version:      promconfig.RemoteWriteProtoMsgV2,
 			extectedCode: http.StatusUnsupportedMediaType,
 		},
 		{
 			name:         "x-protobuf/no proto parameter",
 			contentType:  "application/x-protobuf",
-			extectedCode: http.StatusUnsupportedMediaType,
+			version:      promconfig.RemoteWriteProtoMsgV2,
+			extectedCode: http.StatusNoContent,
 		},
 		{
 			name:         "x-protobuf/v1 proto parameter",
 			contentType:  fmt.Sprintf("application/x-protobuf;proto=%s", promconfig.RemoteWriteProtoMsgV1),
-			extectedCode: http.StatusUnsupportedMediaType,
+			version:      promconfig.RemoteWriteProtoMsgV1,
+			extectedCode: http.StatusNoContent,
 		},
 		{
 			name:         "x-protobuf/v2 proto parameter",
 			contentType:  fmt.Sprintf("application/x-protobuf;proto=%s", promconfig.RemoteWriteProtoMsgV2),
+			version:      promconfig.RemoteWriteProtoMsgV2,
 			extectedCode: http.StatusNoContent,
 		},
 	} {
@@ -86,8 +83,10 @@ func TestHandlePRWContentTypeNegotiation(t *testing.T) {
 
 			req.Header.Set("Content-Type", tc.contentType)
 			req.Header.Set("Content-Encoding", "snappy")
+			req.Header.Set("X-Prometheus-Remote-Write-Version", string(tc.version))
 			resp, err := http.DefaultClient.Do(req)
 			assert.NoError(t, err)
+			defer resp.Body.Close()
 
 			assert.Equal(t, tc.extectedCode, resp.StatusCode)
 			if tc.extectedCode == http.StatusNoContent { // We went until the end
@@ -97,4 +96,6 @@ func TestHandlePRWContentTypeNegotiation(t *testing.T) {
 			}
 		})
 	}
+	cancel()
+	assert.NoError(t, prwReceiver.Shutdown(ctx), "Must not error shutting down")
 }

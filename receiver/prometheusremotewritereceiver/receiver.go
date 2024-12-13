@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gogo/protobuf/proto"
@@ -40,8 +41,9 @@ type prometheusRemoteWriteReceiver struct {
 	settings     receiver.Settings
 	nextConsumer consumer.Metrics
 
-	config *Config
-	server *http.Server
+	config     *Config
+	server     *http.Server
+	shutdownWG sync.WaitGroup
 }
 
 func (prw *prometheusRemoteWriteReceiver) Start(ctx context.Context, host component.Host) error {
@@ -71,7 +73,9 @@ func (prw *prometheusRemoteWriteReceiver) Start(ctx context.Context, host compon
 		return fmt.Errorf("failed to create prometheus remote-write listener: %w", err)
 	}
 
+	prw.shutdownWG.Add(1)
 	go func() {
+		defer prw.shutdownWG.Done()
 		if err := prw.server.Serve(listener); err != nil && !errors.Is(err, http.ErrServerClosed) {
 			componentstatus.ReportStatus(host, componentstatus.NewFatalErrorEvent(fmt.Errorf("error starting prometheus remote-write receiver: %w", err)))
 		}
@@ -80,10 +84,9 @@ func (prw *prometheusRemoteWriteReceiver) Start(ctx context.Context, host compon
 }
 
 func (prw *prometheusRemoteWriteReceiver) Shutdown(ctx context.Context) error {
-	if prw.server == nil {
-		return nil
-	}
-	return prw.server.Shutdown(ctx)
+	err := prw.server.Close()
+	prw.shutdownWG.Wait()
+	return err
 }
 
 func (prw *prometheusRemoteWriteReceiver) handlePRW(w http.ResponseWriter, req *http.Request) {
@@ -114,7 +117,6 @@ func (prw *prometheusRemoteWriteReceiver) handlePRW(w http.ResponseWriter, req *
 	case promconfig.RemoteWriteProtoMsgV2:
 		prw.handlePRWV2(w, req)
 	default:
-
 		prw.settings.Logger.Warn("message received with unsupported proto version, rejecting", zap.String("contentType", contentType), zap.String("protoVersion", protoVersion))
 		http.Error(w, "Unsupported proto version", http.StatusUnsupportedMediaType)
 		return
