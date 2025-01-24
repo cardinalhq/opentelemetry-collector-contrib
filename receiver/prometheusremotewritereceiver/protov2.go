@@ -194,6 +194,7 @@ func getMetric(
 		if value, ok := labels[promName]; ok {
 			resourceAttributes.PutStr(semanticName, value)
 			parts = append(parts, fmt.Sprintf("%s=%s", semanticName, value))
+			delete(labels, promName) // Remove the label to avoid applying it at the metric level
 		}
 	}
 	slices.Sort(parts)
