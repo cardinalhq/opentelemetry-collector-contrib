@@ -183,22 +183,14 @@ func derefLabels(labelsRefs []uint32, symbols []string) map[string]string {
 	return labels
 }
 
+// getMetric returns a metric from the metrics object. If the metric does not exist, it creates it.
+// Labels are converted to semantic resource level attributes.
 func getMetric(
 	labels map[string]string,
 	metrics pmetric.Metrics,
 	resourceMetricCache map[string]int,
 ) pmetric.Metric {
-	var parts []string
-	resourceAttributes := pcommon.NewMap()
-	for promName, semanticName := range resourceAttributeNameMap {
-		if value, ok := labels[promName]; ok {
-			resourceAttributes.PutStr(semanticName, value)
-			parts = append(parts, fmt.Sprintf("%s=%s", semanticName, value))
-			delete(labels, promName) // Remove the label to avoid applying it at the metric level
-		}
-	}
-	slices.Sort(parts)
-	resourceID := strings.Join(parts, ":")
+	resourceAttributes, resourceID := labelsToResourceAttributesAndKey(labels)
 
 	idx, ok := resourceMetricCache[resourceID]
 	if !ok {
@@ -210,4 +202,20 @@ func getMetric(
 	}
 
 	return metrics.ResourceMetrics().At(idx).ScopeMetrics().At(0).Metrics().AppendEmpty()
+}
+
+// labelsToResourceAttributesAndKey converts Prometheus labels to OTLP resource attributes,
+// and returns a deterministic key for the resource based on the labels.
+func labelsToResourceAttributesAndKey(labels map[string]string) (pcommon.Map, string) {
+	resourceAttributes := pcommon.NewMap()
+	var parts []string
+	for promName, semanticName := range resourceAttributeNameMap {
+		if value, ok := labels[promName]; ok {
+			resourceAttributes.PutStr(semanticName, value)
+			parts = append(parts, fmt.Sprintf("%s=%s", semanticName, value))
+			delete(labels, promName) // Remove the label to avoid applying it at the metric level
+		}
+	}
+	slices.Sort(parts)
+	return resourceAttributes, strings.Join(parts, ":")
 }
