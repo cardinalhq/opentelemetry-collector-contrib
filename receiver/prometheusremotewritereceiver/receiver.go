@@ -307,6 +307,9 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, req *wr
 				metric.SetEmptyHistogram()
 			case writev2.Metadata_METRIC_TYPE_SUMMARY:
 				metric.SetEmptySummary()
+			case writev2.Metadata_METRIC_TYPE_UNSPECIFIED:
+				// We can assume that the metric type is a gauge, since this is the default type in Prometheus.
+				metric.SetEmptyGauge()
 			}
 
 			metricCache[metricKey] = metric
@@ -328,6 +331,10 @@ func (prw *prometheusRemoteWriteReceiver) translateV2(_ context.Context, req *wr
 			addHistogramDatapoints(metric.Histogram().DataPoints(), ls, ts)
 		case writev2.Metadata_METRIC_TYPE_SUMMARY:
 			addSummaryDatapoints(metric.Summary().DataPoints(), ls, ts)
+		case writev2.Metadata_METRIC_TYPE_UNSPECIFIED:
+			// This is a special case where the metric type is not specified.
+			// We can assume that the metric type is a gauge, since this is the default type in Prometheus.
+			addNumberDatapoints(metric.Gauge().DataPoints(), ls, ts)
 		default:
 			badRequestErrors = errors.Join(badRequestErrors, fmt.Errorf("unsupported metric type %q for metric %q", ts.Metadata.Type, metricName))
 		}
