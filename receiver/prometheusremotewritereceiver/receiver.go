@@ -163,10 +163,16 @@ func (prw *prometheusRemoteWriteReceiver) handlePRW(w http.ResponseWriter, req *
 		return
 	}
 
-	_, stats, err := prw.translateV2(req.Context(), &prw2Req)
+	m, stats, err := prw.translateV2(req.Context(), &prw2Req)
 	stats.SetHeaders(w)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest) // Following instructions at https://prometheus.io/docs/specs/remote_write_spec_2_0/#invalid-samples
+		return
+	}
+
+	if err := prw.nextConsumer.ConsumeMetrics(req.Context(), m); err != nil {
+		prw.settings.Logger.Warn("Error sending metrics to next consumer", zapcore.Field{Key: "error", Type: zapcore.ErrorType, Interface: err})
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
