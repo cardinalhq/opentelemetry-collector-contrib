@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/ptr"
 	"k8s.io/utils/strings/slices"
@@ -183,6 +184,13 @@ func newInClusterClient() (kubernetes.Interface, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	rest.SetDefaultWarningHandler(
+		rest.NewWarningWriter(os.Stderr, rest.WarningWriterOptions{
+			Deduplicate: true,
+		}),
+	)
+
 	return kubernetes.NewForConfig(cfg)
 }
 
