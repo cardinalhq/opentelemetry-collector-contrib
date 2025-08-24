@@ -9,20 +9,21 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.18.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.85.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.35.0
+	github.com/aws/smithy-go v1.22.5
 	github.com/google/uuid v1.6.0
 	github.com/itchyny/timefmt-go v0.1.6
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchperresourceattr v0.136.0
 	github.com/stretchr/testify v1.11.1
 	github.com/tilinna/clock v1.1.0
-	go.opentelemetry.io/collector/component v1.42.1-0.20250925151503-069408608b28
-	go.opentelemetry.io/collector/component/componenttest v0.136.1-0.20250925151503-069408608b28
-	go.opentelemetry.io/collector/config/configcompression v1.42.1-0.20250925151503-069408608b28
-	go.opentelemetry.io/collector/confmap v1.42.1-0.20250925151503-069408608b28
+	go.opentelemetry.io/collector/component v1.42.0
+	go.opentelemetry.io/collector/component/componenttest v0.136.0
+	go.opentelemetry.io/collector/config/configcompression v1.42.0
+	go.opentelemetry.io/collector/confmap v1.42.0
 	go.opentelemetry.io/collector/consumer v1.42.1-0.20250925151503-069408608b28
-	go.opentelemetry.io/collector/exporter v1.42.1-0.20250925151503-069408608b28
-	go.opentelemetry.io/collector/exporter/exporterhelper v0.136.1-0.20250925151503-069408608b28
-	go.opentelemetry.io/collector/exporter/exportertest v0.136.1-0.20250925151503-069408608b28
-	go.opentelemetry.io/collector/otelcol/otelcoltest v0.136.1-0.20250925151503-069408608b28
+	go.opentelemetry.io/collector/exporter v1.42.0
+	go.opentelemetry.io/collector/exporter/exporterhelper v0.136.0
+	go.opentelemetry.io/collector/exporter/exportertest v0.136.0
+	go.opentelemetry.io/collector/otelcol/otelcoltest v0.136.0
 	go.opentelemetry.io/collector/pdata v1.42.1-0.20250925151503-069408608b28
 	go.uber.org/goleak v1.3.0
 	go.uber.org/multierr v1.11.0
@@ -42,7 +43,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.19.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.26.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.31.0 // indirect
-	github.com/aws/smithy-go v1.22.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
