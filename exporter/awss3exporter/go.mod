@@ -14,16 +14,16 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchperresourceattr v0.138.0
 	github.com/stretchr/testify v1.11.1
 	github.com/tilinna/clock v1.1.0
-	go.opentelemetry.io/collector/component v1.44.1-0.20251023205830-8038c6949379
-	go.opentelemetry.io/collector/component/componenttest v0.138.1-0.20251023205830-8038c6949379
-	go.opentelemetry.io/collector/config/configcompression v1.44.1-0.20251023205830-8038c6949379
-	go.opentelemetry.io/collector/confmap v1.44.1-0.20251023205830-8038c6949379
-	go.opentelemetry.io/collector/consumer v1.44.1-0.20251023205830-8038c6949379
-	go.opentelemetry.io/collector/exporter v1.44.1-0.20251023205830-8038c6949379
-	go.opentelemetry.io/collector/exporter/exporterhelper v0.138.1-0.20251023205830-8038c6949379
-	go.opentelemetry.io/collector/exporter/exportertest v0.138.1-0.20251023205830-8038c6949379
-	go.opentelemetry.io/collector/otelcol/otelcoltest v0.138.1-0.20251023205830-8038c6949379
-	go.opentelemetry.io/collector/pdata v1.44.1-0.20251023205830-8038c6949379
+	go.opentelemetry.io/collector/component v1.44.0
+	go.opentelemetry.io/collector/component/componenttest v0.138.0
+	go.opentelemetry.io/collector/config/configcompression v1.44.0
+	go.opentelemetry.io/collector/confmap v1.44.0
+	go.opentelemetry.io/collector/consumer v1.44.0
+	go.opentelemetry.io/collector/exporter v1.44.0
+	go.opentelemetry.io/collector/exporter/exporterhelper v0.138.0
+	go.opentelemetry.io/collector/exporter/exportertest v0.138.0
+	go.opentelemetry.io/collector/otelcol/otelcoltest v0.138.0
+	go.opentelemetry.io/collector/pdata v1.44.0
 	go.uber.org/goleak v1.3.0
 	go.uber.org/multierr v1.11.0
 	go.uber.org/zap v1.27.0
