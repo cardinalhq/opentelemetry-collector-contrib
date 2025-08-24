@@ -67,6 +67,9 @@ type S3UploaderConfig struct {
 	// If unspecified, a default function will be used that generates a random string.
 	// Valid values are: "uuidv7"
 	UniqueKeyFuncName string `mapstructure:"unique_key_func_name"`
+
+	// Enable GCS compatibility mode
+	EnableGCSCompatibility bool `mapstructure:"enable_gcs_compatibility"`
 }
 
 type MarshalerType string
