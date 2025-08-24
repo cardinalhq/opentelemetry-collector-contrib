@@ -10,11 +10,14 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/retry"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	"github.com/aws/smithy-go/middleware"
+	smithyhttp "github.com/aws/smithy-go/transport/http"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/exporter/awss3exporter/internal/upload"
 )
@@ -53,6 +56,10 @@ func newUploadManager(
 			o.UsePathStyle = conf.S3Uploader.S3ForcePathStyle
 			o.Retryer = retry.AddWithMaxAttempts(o.Retryer, conf.S3Uploader.RetryMaxAttempts)
 			o.Retryer = retry.AddWithMaxBackoffDelay(o.Retryer, conf.S3Uploader.RetryMaxBackoff)
+
+			if conf.S3Uploader.EnableGCSCompatibility {
+				enableGCSCompatibility(o)
+			}
 		},
 	}
 
@@ -116,3 +123,61 @@ func newUploadManager(
 		managerOpts...,
 	), nil
 }
+
+func enableGCSCompatibility(o *s3.Options) {
+	o.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+
+	o.APIOptions = append(o.APIOptions, func(stack *middleware.Stack) error {
+		if err := stack.Finalize.Insert(dropAcceptEncodingHeader, "Signing", middleware.Before); err != nil {
+			return err
+		}
+		if err := stack.Finalize.Insert(replaceAcceptEncodingHeader, "Signing", middleware.After); err != nil {
+			return err
+		}
+		return nil
+	})
+}
+
+const acceptEncodingHeader = "Accept-Encoding"
+
+type acceptEncodingKey struct{}
+
+func getAcceptEncodingKey(ctx context.Context) (v string) {
+	v, _ = middleware.GetStackValue(ctx, acceptEncodingKey{}).(string)
+	return v
+}
+
+func setAcceptEncodingKey(ctx context.Context, value string) context.Context {
+	return middleware.WithStackValue(ctx, acceptEncodingKey{}, value)
+}
+
+var dropAcceptEncodingHeader = middleware.FinalizeMiddlewareFunc("DropAcceptEncodingHeader",
+	func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (out middleware.FinalizeOutput, metadata middleware.Metadata, err error) {
+		req, ok := in.Request.(*smithyhttp.Request)
+		if !ok {
+			return out, metadata, &v4.SigningError{Err: fmt.Errorf("unexpected request middleware type %T", in.Request)}
+		}
+
+		ae := req.Header.Get(acceptEncodingHeader)
+		ctx = setAcceptEncodingKey(ctx, ae)
+		req.Header.Del(acceptEncodingHeader)
+		in.Request = req
+
+		return next.HandleFinalize(ctx, in)
+	},
+)
+
+var replaceAcceptEncodingHeader = middleware.FinalizeMiddlewareFunc("ReplaceAcceptEncodingHeader",
+	func(ctx context.Context, in middleware.FinalizeInput, next middleware.FinalizeHandler) (out middleware.FinalizeOutput, metadata middleware.Metadata, err error) {
+		req, ok := in.Request.(*smithyhttp.Request)
+		if !ok {
+			return out, metadata, &v4.SigningError{Err: fmt.Errorf("unexpected request middleware type %T", in.Request)}
+		}
+
+		ae := getAcceptEncodingKey(ctx)
+		req.Header.Set(acceptEncodingHeader, ae)
+		in.Request = req
+
+		return next.HandleFinalize(ctx, in)
+	},
+)
