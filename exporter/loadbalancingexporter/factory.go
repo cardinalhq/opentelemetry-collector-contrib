@@ -55,8 +55,19 @@ func buildExporterConfig(cfg *Config, endpoint string) otlpexporter.Config {
 }
 
 func buildExporterSettings(params exporter.Settings, endpoint string) exporter.Settings {
-	params.Logger = params.Logger.With(zap.String(zapEndpointKey, endpoint))
-	return params
+	// Create a new component ID with the correct type for the child OTLP exporter
+	// The child exporter must have type "otlp" to pass factory validation
+	otlpFactory := otlpexporter.NewFactory()
+	childID := component.MustNewIDWithName(otlpFactory.Type().String(), endpoint)
+
+	telemetry := params.TelemetrySettings
+	telemetry.Logger = params.Logger.With(zap.String(zapEndpointKey, endpoint))
+
+	return exporter.Settings{
+		ID:                childID,
+		TelemetrySettings: telemetry,
+		BuildInfo:         params.BuildInfo,
+	}
 }
 
 func buildExporterResilienceOptions(options []exporterhelper.Option, cfg *Config) []exporterhelper.Option {
