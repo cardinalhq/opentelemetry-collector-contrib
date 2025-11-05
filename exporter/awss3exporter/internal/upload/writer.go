@@ -28,11 +28,12 @@ type UploadOptions struct {
 }
 
 type s3manager struct {
-	bucket       string
-	builder      *PartitionKeyBuilder
-	uploader     *manager.Uploader
-	storageClass s3types.StorageClass
-	acl          s3types.ObjectCannedACL
+	bucket                 string
+	builder                *PartitionKeyBuilder
+	uploader               *manager.Uploader
+	storageClass           s3types.StorageClass
+	acl                    s3types.ObjectCannedACL
+	enableGCSCompatibility bool
 }
 
 var _ Manager = (*s3manager)(nil)
@@ -64,10 +65,11 @@ func (sw *s3manager) Upload(ctx context.Context, data []byte, opts *UploadOption
 	}
 
 	encoding := ""
-	// Only use ContentEncoding for non-archive formats
-	// Archive formats store files compressed permanently (like .tar.gz)
-	// while ContentEncoding is for HTTP transfer compression
-	if sw.builder.Compression.IsCompressed() && !sw.builder.IsCompressed {
+	// Only use ContentEncoding for non-archive formats and when not in GCS compatibility mode.
+	// Archive formats store files compressed permanently (like .tar.gz) while ContentEncoding
+	// is for HTTP transfer compression. GCS compatibility mode avoids transparent decompression
+	// which causes CRC32C checksum mismatches.
+	if sw.builder.Compression.IsCompressed() && !sw.builder.IsCompressed && !sw.enableGCSCompatibility {
 		encoding = string(sw.builder.Compression)
 	}
 
@@ -125,5 +127,15 @@ func WithACL(acl s3types.ObjectCannedACL) func(Manager) {
 			return
 		}
 		s3m.acl = acl
+	}
+}
+
+func WithGCSCompatibility(enabled bool) func(Manager) {
+	return func(m Manager) {
+		s3m, ok := m.(*s3manager)
+		if !ok {
+			return
+		}
+		s3m.enableGCSCompatibility = enabled
 	}
 }

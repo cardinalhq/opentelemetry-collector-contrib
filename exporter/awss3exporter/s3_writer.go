@@ -88,6 +88,11 @@ func newUploadManager(
 			upload.WithACL(s3types.ObjectCannedACL(conf.S3Uploader.ACL)))
 	}
 
+	if conf.S3Uploader.EnableGCSCompatibility {
+		managerOpts = append(managerOpts,
+			upload.WithGCSCompatibility(true))
+	}
+
 	var uniqueKeyFunc func() string
 	switch conf.S3Uploader.UniqueKeyFuncName {
 	case "uuidv7":
