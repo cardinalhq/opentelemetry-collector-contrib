@@ -163,7 +163,7 @@ func TestBuildExporterResilienceOptions(t *testing.T) {
 		o := []exporterhelper.Option{}
 		cfg := createDefaultConfig().(*Config)
 		cfg.TimeoutSettings = exporterhelper.NewDefaultTimeoutConfig()
-		cfg.QueueSettings = exporterhelper.NewDefaultQueueConfig()
+		cfg.QueueSettings = configoptional.Some(exporterhelper.NewDefaultQueueConfig())
 
 		assert.Len(t, buildExporterResilienceOptions(o, cfg), 2)
 	})
@@ -171,7 +171,7 @@ func TestBuildExporterResilienceOptions(t *testing.T) {
 		o := []exporterhelper.Option{}
 		cfg := createDefaultConfig().(*Config)
 		cfg.TimeoutSettings = exporterhelper.NewDefaultTimeoutConfig()
-		cfg.QueueSettings = exporterhelper.NewDefaultQueueConfig()
+		cfg.QueueSettings = configoptional.Some(exporterhelper.NewDefaultQueueConfig())
 		cfg.BackOffConfig = configretry.NewDefaultBackOffConfig()
 
 		assert.Len(t, buildExporterResilienceOptions(o, cfg), 3)

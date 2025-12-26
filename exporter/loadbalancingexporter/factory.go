@@ -74,7 +74,7 @@ func buildExporterResilienceOptions(options []exporterhelper.Option, cfg *Config
 	if cfg.TimeoutSettings.Timeout > 0 {
 		options = append(options, exporterhelper.WithTimeout(cfg.TimeoutSettings))
 	}
-	if cfg.QueueSettings.Enabled {
+	if cfg.QueueSettings.HasValue() {
 		options = append(options, exporterhelper.WithQueue(cfg.QueueSettings))
 	}
 	if cfg.Enabled {
