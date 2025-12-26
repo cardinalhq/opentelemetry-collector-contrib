@@ -3,8 +3,6 @@ receivers:
 
 exporters:
   awss3:
-    sending_queue:
-      enabled: false
     timeout: 5s
 
     s3uploader:
